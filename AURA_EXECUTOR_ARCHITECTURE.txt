@@ -1,0 +1,109 @@
+AURA EXECUTOR ARCHITECTURE
+==========================
+
+Overview
+--------
+Aura Executor provides a unified command pipeline for both voice and text inputs,
+following OpenClaw's gateway pattern with strict tool allowlisting and audit logging.
+
+Pipeline Flow
+-------------
+1. Input Normalization
+   - Sanitize and validate user input (max 2000 chars)
+   - Extract source (voice/message/system)
+
+2. Session Management
+   - Load or create session with userId + sessionId
+   - Track conversation history and pending actions
+   - Store context for confirmations
+
+3. Intent Analysis
+   - Pattern matching for common commands
+   - Determine if direct reply or tool call needed
+   - Parse tool arguments from natural language
+
+4. Tool Validation
+   - Check tool against ALLOWED_TOOLS registry
+   - Validate schema and permissions
+   - Check feature flags
+   - Enforce timeouts
+
+5. Tool Execution
+   - Execute via local agent (port 8787) OR
+   - Execute directly (browser automation via CDP)
+   - Never execute LLM-generated code
+   - Only use fixed JS templates
+
+6. Response Composition
+   - Format user-friendly reply
+   - Include tool trace for debugging
+   - Log all actions for audit
+
+Tool Safety Model
+-----------------
+- DEFAULT DENY: Only registered tools can execute
+- ALLOWLIST: Each tool explicitly lists allowed sources
+- SCHEMA VALIDATION: Args must match expected types
+- FEATURE FLAGS: Tools can require specific flags enabled
+- TIMEOUTS: All tool calls have max execution time
+- CONFIRMATIONS: Destructive actions require two-step flow
+- AUDIT LOGS: Every execution logged with full trace
+- NO ARBITRARY CODE: Only fixed templates, never LLM-generated JS
+
+Browser Automation Safety
+--------------------------
+For browser.scroll:
+- Only 4 fixed JS templates allowed:
+  * window.scrollBy(0, PX)
+  * window.scrollTo(0, 0)
+  * window.scrollTo(0, document.body.scrollHeight)
+- PX value clamped to 100-5000 range
+- No string interpolation from user input
+- Executes via Chrome DevTools Protocol (CDP)
+
+LinkedIn Posting Safety
+-----------------------
+Two-step confirmation flow:
+1. prepare: Store draft in session, read back to user
+2. confirm: Only after explicit "confirm" command
+   - POST to n8n webhook (not LinkedIn API directly)
+   - Include nonce for idempotency
+   - Respect AURA_DRY_RUN flag
+
+Feature Flags
+-------------
+AURA_EXECUTOR=true/false       - Master switch (default: false)
+AURA_DRY_RUN=true/false        - Simulate tools without executing
+AURA_BROWSER_AUTOMATION=true/false - Enable browser control
+AURA_BROWSER_SCROLL=true/false - Enable scroll specifically
+AURA_LINKEDIN_N8N=true/false   - Enable LinkedIn posting
+
+When AURA_EXECUTOR=false, all requests bypass executor and use legacy flow.
+
+Integration Points
+------------------
+- POST /api/chat - Text messages (wired to executor if flag enabled)
+- Voice transcript handler in App.tsx - Voice commands
+- Local agent (port 8787) - PC control tools
+- Browser adapter - CDP connection for browser automation
+- N8N webhook - LinkedIn posting via workflow
+
+Audit Trail
+-----------
+Every execution produces structured trace:
+{
+  requestId: "aura_<timestamp>_<random>",
+  source: "voice" | "message",
+  userId, sessionId,
+  input: "<user text>",
+  steps: [
+    { step: "normalize", status: "ok", timestamp },
+    { step: "session_loaded", sessionId, timestamp },
+    { step: "intent_analysis", intent: "tool_call", timestamp },
+    { step: "tool_validation", status: "ok", tool: "open_app", timestamp },
+    { step: "tool_execution", status: "ok", result: "...", timestamp }
+  ],
+  duration: 234
+}
+
+Stored in: server/aura-audit.log (JSON lines format)

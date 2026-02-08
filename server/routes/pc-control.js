@@ -11,6 +11,9 @@ const DESTRUCTIVE_TOOLS = ['delete_file', 'delete_folder', 'kill_process'];
 
 const NL_MAP = {
   'open notepad': { tool_name: 'open_app', args: { app_id: 'notepad' } },
+  'notepad': { tool_name: 'open_app', args: { app_id: 'notepad' } },
+  'launch notepad': { tool_name: 'open_app', args: { app_id: 'notepad' } },
+  'start notepad': { tool_name: 'open_app', args: { app_id: 'notepad' } },
   'open chrome': { tool_name: 'open_app', args: { app_id: 'chrome' } },
   'open vscode': { tool_name: 'open_app', args: { app_id: 'vscode' } },
   'open gmail': { tool_name: 'open_url_id', args: { id: 'gmail' } },

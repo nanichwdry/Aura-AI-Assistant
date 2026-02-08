@@ -22,11 +22,18 @@ import path from "path";
 import os from "os";
 import { spawn, execFile } from "child_process";
 import { promisify } from "util";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const execFileAsync = promisify(execFile);
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:5173', 'tauri://localhost', 'http://tauri.localhost'],
+  methods: ['GET', 'POST', 'OPTIONS'],
+  credentials: true
+}));
 app.use(express.json({ limit: "1mb" }));
 
 // =====================
@@ -165,15 +172,21 @@ function validateUrl(u) {
 }
 
 function validatePid(pid) {
+  if (!pid) throw new Error("PID is required");
   const n = Number(pid);
-  if (!Number.isInteger(n) || n <= 0) throw new Error("Invalid pid");
+  if (!Number.isInteger(n) || n <= 0) throw new Error("Invalid pid - must be a positive integer");
   return String(n);
 }
 
 function spawnDetached(cmd, args) {
-  // No shell; detached; ignore stdio
-  const child = spawn(cmd, args, { detached: true, stdio: "ignore" });
-  child.unref();
+  // Force GUI apps to appear on desktop, not hidden in Session 0
+  const child = spawn(cmd, args, { 
+    detached: true, 
+    stdio: "ignore", // GUI apps need to ignore stdio to detach properly
+    windowsHide: false, // Ensures the window isn't hidden
+    shell: true // Uses Windows shell to resolve executable path
+  });
+  child.unref(); // Lets the agent "drop" the process so app stays open
 }
 
 function openWithShellStart(target) {
@@ -292,13 +305,13 @@ app.post("/tool/run", async (req, res) => {
         if (!spec) throw new Error("App not allowed");
 
         if (spec.type === "exe") {
-          // exe in PATH
-          spawnDetached(spec.value, []);
+          // Use cmd /c start for reliable GUI app launching
+          openWithShellStart(spec.value);
           result = `Opened ${appId}`;
         } else if (spec.type === "exe_path_candidates") {
           const exe = findFirstExisting(spec.value);
           if (!exe) throw new Error(`Executable not found for ${appId}`);
-          spawnDetached(exe, []);
+          openWithShellStart(exe);
           result = `Opened ${appId}`;
         } else {
           throw new Error("Invalid app spec");
@@ -395,8 +408,19 @@ app.post("/tool/run", async (req, res) => {
         if (!requireConfirm(req)) throw new Error("Confirmation required (x-confirm: YES)");
         const pid = validatePid(args?.pid);
         // taskkill fixed args (no injection)
-        await execFileAsync("taskkill", ["/PID", pid, "/F"]);
-        result = `Process ${pid} killed`;
+        try {
+          await execFileAsync("taskkill", ["/PID", pid, "/F"]);
+          result = `Process ${pid} killed`;
+        } catch (err) {
+          // If PID kill fails, try by process name if provided
+          if (args?.name) {
+            const processName = String(args.name).replace(/[^a-zA-Z0-9._-]/g, '');
+            await execFileAsync("taskkill", ["/IM", processName, "/F"]);
+            result = `Process ${processName} killed`;
+          } else {
+            throw err;
+          }
+        }
         break;
       }
 

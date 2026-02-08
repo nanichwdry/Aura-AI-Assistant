@@ -7,7 +7,7 @@
     "withGlobalTauri": false
   },
   "package": {
-    "productName": "Chottu AI Assistant",
+    "productName": "Aura",
     "version": "0.1.0"
   },
   "tauri": {
@@ -27,7 +27,7 @@
         "readFile": true,
         "writeFile": true,
         "createDir": true,
-        "scope": ["$APPDATA/Chottu/*", "$HOME/Library/Application Support/Chottu/*"]
+        "scope": ["$APPDATA/Aura/*", "$HOME/Library/Application Support/Aura/*"]
       },
       "globalShortcut": {
         "all": true
@@ -36,7 +36,7 @@
     "bundle": {
       "active": true,
       "targets": "all",
-      "identifier": "com.chottu.desktop",
+      "identifier": "com.aura.desktop",
       "icon": [
         "icons/32x32.png",
         "icons/128x128.png",
@@ -58,7 +58,7 @@
       {
         "fullscreen": false,
         "resizable": true,
-        "title": "Chottu AI Assistant",
+        "title": "Aura",
         "width": 1200,
         "height": 800,
         "minWidth": 800,

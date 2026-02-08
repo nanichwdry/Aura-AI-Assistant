@@ -1,0 +1,126 @@
+AURA EXECUTOR - FILE-BY-FILE CHANGES
+=====================================
+
+NEW FILES CREATED
+-----------------
+
+1. server/aura/executor.js
+   - Core execution engine with unified pipeline
+   - Handles voice and message inputs identically
+   - Implements browser scroll with fixed JS templates
+   - Implements LinkedIn posting with confirmation flow
+   - Audit logging for all executions
+
+2. server/aura/tool-registry.js
+   - Allowlist-based tool registry
+   - Schema validation
+   - Permission checks
+   - Feature flag enforcement
+   - Tools: open_app, open_url, open_url_id, search_files, get_system_info, list_processes, browser_scroll, linkedin_post_prepare, linkedin_post_confirm, cancel_pending_action
+
+3. server/aura/session-manager.js
+   - Minimal session tracking
+   - Pending action management for confirmations
+   - Auto-cleanup of old sessions
+
+4. server/tests/aura.test.js
+   - Tests for tool allowlist blocking
+   - Schema validation tests
+   - Feature flag enforcement tests
+   - Source permission tests
+
+5. server/tests/browser-scroll.test.js
+   - Tests for scroll command parsing
+   - Fixed JS template validation
+   - User input sanitization tests
+
+6. AURA_EXECUTOR_ARCHITECTURE.txt
+   - Architecture documentation
+   - Pipeline flow description
+   - Tool safety model
+   - Feature flags reference
+
+7. AURA_EXECUTOR_RUNBOOK.md
+   - Environment variables guide
+   - How to enable flags
+   - How to run tests
+   - How to debug traces
+   - Troubleshooting guide
+
+MODIFIED FILES
+--------------
+
+1. server/index.js
+   Changes:
+   - Added import for runAuraCommand
+   - Added AURA_EXECUTOR_ENABLED feature flag
+   - Modified /api/chat endpoint to route through executor when flag enabled
+   - Maintains backward compatibility when flag is false
+
+2. server/.env
+   Changes:
+   - Added AURA_LINKEDIN_N8N=false flag
+   - Added N8N_LINKEDIN_WEBHOOK_URL= config
+   - Added N8N_WEBHOOK_AUTH_TOKEN= config
+
+3. server/services/browser-adapter.js
+   Changes:
+   - Fixed async/await syntax error in sendCDPCommand
+   - Moved WebSocket import outside Promise constructor
+
+NO CHANGES REQUIRED
+-------------------
+
+- Frontend code (App.tsx, components, etc.)
+- Voice handling logic
+- Existing PC control routes
+- Local agent
+- Database schema
+- Authentication middleware
+
+INTEGRATION POINTS
+------------------
+
+1. POST /api/chat
+   - When AURA_EXECUTOR=false: Uses legacy PC control fast path
+   - When AURA_EXECUTOR=true: Routes through runAuraCommand()
+   - Returns structured response with trace and actions
+
+2. Voice transcripts (future)
+   - Can call runAuraCommand() with source='voice'
+   - Same pipeline as text messages
+   - No frontend changes needed
+
+3. Local agent (port 8787)
+   - Executor calls /tool/run for PC control tools
+   - Browser scroll bypasses agent, uses CDP directly
+   - LinkedIn posting uses n8n webhook
+
+BACKWARD COMPATIBILITY
+----------------------
+
+✓ When AURA_EXECUTOR=false, nothing changes
+✓ All existing endpoints work unchanged
+✓ No database migrations required
+✓ No frontend updates required
+✓ Can enable/disable with single flag
+
+DEPLOYMENT CHECKLIST
+--------------------
+
+1. Pull latest code
+2. Update server/.env with desired flags
+3. Restart backend: cd server && npm start
+4. Run tests: node tests/aura.test.js
+5. Test with curl/Postman
+6. Monitor server/aura-audit.log
+7. Enable for production when ready
+
+ROLLBACK PLAN
+-------------
+
+If issues occur:
+1. Set AURA_EXECUTOR=false in server/.env
+2. Restart backend
+3. System reverts to legacy behavior
+4. No data loss, no downtime

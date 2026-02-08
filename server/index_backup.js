@@ -8,9 +8,6 @@ import * as system from './integrations/system.js';
 import { authMiddleware } from './middleware/auth.js';
 import { setupPairingRoutes } from './routes/pairing.js';
 import { setupPcControlRoutes } from './routes/pc-control.js';
-import { runAuraCommand } from './aura/executor.js';
-
-const AURA_EXECUTOR_ENABLED = process.env.AURA_EXECUTOR === 'true';
 
 const AGENT_URL = 'http://127.0.0.1:8787/tool/run';
 const AGENT_TOKEN = process.env.CHOTU_AGENT_TOKEN;
@@ -19,8 +16,7 @@ const app = express();
 app.use(cors({
   origin: ['http://localhost:5173', 'tauri://localhost', 'http://tauri.localhost'],
   methods: ['GET', 'POST', 'OPTIONS'],
-  credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization']
+  credentials: true
 }));
 app.use(express.json());
 
@@ -145,60 +141,82 @@ app.post('/api/tools/system', async (req, res) => {
   res.json(result);
 });
 
-// Chat endpoint - PC control now handled by n8n workflow
+// Chat endpoint with PC control fast path
 app.post('/api/chat', async (req, res) => {
-  const text = (req.body?.text || req.body?.message || req.body?.transcript || '').trim();
-  
-  // Aura Executor (feature-flagged)
-  if (AURA_EXECUTOR_ENABLED && text) {
-    try {
-      const result = await runAuraCommand({
-        source: 'message',
-        userId: req.body?.userId || 'default',
-        sessionId: req.body?.sessionId || `session_${Date.now()}`,
-        text,
-        attachments: req.body?.attachments || [],
-        metadata: req.body?.metadata || {},
+  const text = (req.body?.text || req.body?.message || req.body?.transcript || '').trim().toLowerCase();
+    // === PC CONTROL FAST PATH (DO NOT TOUCH OTHER LOGIC) ===
+  try {
+    const normalized = String(text || "").trim().toLowerCase();
+
+    // only intercept explicit "open ..." commands
+    if (normalized.startsWith("open ")) {
+      // IMPORTANT: call existing backend PC route, NOT the agent directly
+      const port = process.env.PORT || 3001;
+
+      // ✅ YOU MUST SET THIS TO THE REAL PATH FROM routes/pc-control.js
+      // Open routes/pc-control.js and copy the exact endpoint path that handles NL open commands.
+      // It will look like: app.post('/api/....', ...)
+      const PC_NL_PATH = "/api/pc/nl"; // <-- CHANGE THIS to match your routes/pc-control.js
+
+      const r = await fetch(`http://127.0.0.1:${port}${PC_NL_PATH}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: normalized })
       });
-      
+
+      const data = await r.json().catch(() => null);
+
+      if (data?.ok) {
+        return res.json({
+          ok: true,
+          reply: "Sure thing. Done.",
+          tool: data
+        });
+      }
+
+      // For an open command, return the real error (no fake “agent offline”)
       return res.json({
-        success: true,
-        reply: result.replyText,
-        trace: result.toolTrace,
-        actions: result.actionsTaken,
+        ok: false,
+        reply: `Couldn't do that: ${data?.error || "Unknown PC-control error"}`,
+        tool: data
       });
+    }
+  } catch (e) {
+    return res.json({
+      ok: false,
+      reply: `PC control failed: ${e?.message || String(e)}`
+    });
+  }
+  // === END PC CONTROL FAST PATH ===
+
+  
+  // PC control fast path
+  if (text.startsWith('open ')) {
+    try {
+      const response = await fetch('http://localhost:3001/api/pc/nl', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+      const data = await response.json();
+      
+      if (data.ok) {
+        return res.json({ success: true, message: 'Sure. Done.' });
+      } else if (data.error === 'No PC action matched') {
+        // Fall through to normal chat logic
+      } else {
+        return res.json({ success: false, message: data.error });
+      }
     } catch (error) {
-      return res.status(500).json({
-        success: false,
-        error: error.message,
-      });
+      if (error.code === 'ECONNREFUSED') {
+        return res.json({ success: false, message: 'PC control service unavailable' });
+      }
+      // Fall through to normal chat logic
     }
   }
   
-  // PC control requests now go through n8n workflow
-  // Backend fast path disabled to prevent dual responses
-  
   // Normal chat logic (placeholder)
   res.json({ success: true, message: 'Chat response would go here' });
-});
-
-// Optional: Backend can also route through n8n if needed
-app.post('/api/pc-control', async (req, res) => {
-  try {
-    const response = await fetch('https://mukharji2108.app.n8n.cloud/webhook/pc-control-request', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        command: req.body.command || req.body.text,
-        source: 'backend',
-        requestId: Date.now().toString()
-      })
-    });
-    const data = await response.json();
-    res.json(data);
-  } catch (error) {
-    res.status(500).json({ error: 'n8n workflow unavailable' });
-  }
 });
 
 const gmailTokens = db.prepare('SELECT value FROM memories WHERE key = ?').get('gmail_tokens');

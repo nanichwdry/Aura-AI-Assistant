@@ -1,6 +1,22 @@
-# Chottu AI Assistant
+# Chottu AI Assistant (Aura Edition)
 
 Your personal AI assistant with voice control and full PC access.
+
+## 🆕 Aura Executor (NEW)
+
+Aura is a unified task execution system inspired by OpenClaw's gateway pattern. It provides:
+- **Unified Pipeline**: Same execution path for message and voice inputs
+- **Tool Allowlist**: Strict security with default-deny tool execution
+- **Session Management**: Conversation continuity across interactions
+- **Audit Logging**: Full trace of all tool executions
+
+**Enable Aura**: Set `AURA_EXECUTOR=true` in `server/.env`
+
+📚 **Documentation**:
+- [Architecture](AURA_ARCHITECTURE.md)
+- [Operations Guide](AURA_RUNBOOK.md)
+- [Implementation Details](AURA_IMPLEMENTATION.md)
+- [Delivery Summary](AURA_DELIVERY.md)
 
 ## Features
 

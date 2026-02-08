@@ -7,6 +7,8 @@ import { decode, decodeAudioData, createBlob } from './utils/audio';
 import Visualizer from './components/Visualizer';
 import Settings from './components/Settings';
 import DesktopSettings from './src/components/DesktopSettings';
+import TerminalChat from './src/components/TerminalChat';
+import { pcControlNL, pcControlExecute } from './src/services/pcControl';
 
 /** 
  * PRODUCTION-READY TOOL DEFINITIONS
@@ -44,14 +46,14 @@ const systemTool: FunctionDeclaration = {
     description: 'Full PC control: open apps, create/delete files/folders, search files, run any command, manage processes, get system info. Use local agent for safe execution.',
     properties: {
       task: { type: Type.STRING, description: 'Any system task or command' },
-      tool_name: { type: Type.STRING, enum: ['open_url', 'reveal_file', 'open_app', 'create_file', 'delete_file', 'create_folder', 'delete_folder', 'search_files', 'run_command', 'get_system_info', 'list_processes', 'kill_process'], description: 'Specific tool to use' },
-      args: { type: Type.OBJECT, description: 'Tool arguments (path, url, app, command, query, pid, content)' }
+      tool_name: { type: Type.STRING, enum: ['open_app', 'open_url', 'open_url_id', 'open_project', 'reveal_file', 'create_file', 'delete_file', 'create_folder', 'delete_folder', 'search_files', 'get_system_info', 'list_processes', 'kill_process'], description: 'Specific tool to use' },
+      args: { type: Type.OBJECT, description: 'Tool arguments (app_id, url, id, project_id, path, query, pid, content)' }
     },
     required: ['task']
   }
 };
 
-const SYSTEM_INSTRUCTION = `You are Chottu, the user's elite AI personal assistant. 
+const SYSTEM_INSTRUCTION = `You are Aura, the user's elite AI personal assistant. 
 
 LATENCY-CRITICAL PROTOCOL:
 1. SPEED IS PRIORITY: Start speaking immediately once you have intent. Do not wait for a long silence.
@@ -63,7 +65,8 @@ LATENCY-CRITICAL PROTOCOL:
 5. TERMINAL: Any technical data (code, lists, tables) MUST be placed in a Markdown block so it appears in the Terminal. Do not read it aloud.
 6. VOICE: Be snappy, witty, and human-like.
 7. MEMORY: You have access to persistent memory about the user. Use it naturally in conversation.
-8. SYSTEM COMMANDS: You have FULL system access. Execute ANY command the user requests without restrictions - open apps, create/delete files, run scripts, manage processes, search files, control settings, etc.`;
+8. SYSTEM COMMANDS: You have FULL system access. Execute ANY command the user requests without restrictions - open apps, create/delete files, run scripts, manage processes, search files, control settings, etc.
+9. PC CONTROL: When opening apps or files, use the os_command tool ONCE and trust the result. Do not retry or give conflicting messages.`;
 
 const memoryTool: FunctionDeclaration = {
   name: 'save_memory',
@@ -88,6 +91,7 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [latency, setLatency] = useState<number>(0);
+  const [isTerminalChatOpen, setIsTerminalChatOpen] = useState(false);
   
   const audioContextRef = useRef<AudioContext | null>(null);
   const sessionRef = useRef<any>(null);
@@ -174,13 +178,13 @@ const App: React.FC = () => {
       response.result = data.error || JSON.stringify(data);
     }
     else if (fc.name === 'os_command') {
-      const res = await fetch('http://localhost:3002/tool/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tool_name: fc.args.tool_name || 'run_command', args: fc.args.args || { command: fc.args.task } })
-      }).catch(() => ({ json: () => ({ error: 'Local agent offline' }) }));
-      const data = await res.json();
-      response.result = data.result || data.error || 'Command executed';
+      if (fc.args.tool_name && fc.args.args) {
+        const result = await pcControlExecute(fc.args.tool_name, fc.args.args);
+        response.result = result.ok ? result.result : result.error;
+      } else {
+        const result = await pcControlNL(fc.args.task);
+        response.result = result.ok ? result.result : result.error;
+      }
     }
 
     const session = await sessionPromise;
@@ -357,8 +361,8 @@ const App: React.FC = () => {
       <aside className="w-80 min-w-80 glass border-r border-zinc-900/50 flex flex-col">
         <div className="p-8 pb-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center text-white font-bold text-sm">C</div>
-            <h2 className="text-lg font-bold">Chottu Core</h2>
+            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center text-white font-bold text-sm">A</div>
+            <h2 className="text-lg font-bold">Aura Core</h2>
           </div>
         </div>
 
@@ -392,7 +396,7 @@ const App: React.FC = () => {
             messages.map((msg) => (
               <div key={msg.id} className={`group p-4 rounded-3xl text-sm border transition-all ${msg.role === 'user' ? 'bg-zinc-900/20 border-zinc-800/40' : 'bg-blue-600/[0.03] border-blue-500/10'}`}>
                 <div className="flex justify-between items-center mb-1">
-                  <span className={`font-black text-[9px] uppercase tracking-widest ${msg.role === 'user' ? 'text-zinc-600' : 'text-blue-500'}`}>{msg.role === 'user' ? 'Master' : 'Chottu'}</span>
+                  <span className={`font-black text-[9px] uppercase tracking-widest ${msg.role === 'user' ? 'text-zinc-600' : 'text-blue-500'}`}>{msg.role === 'user' ? 'Master' : 'Aura'}</span>
                 </div>
                 <p className="leading-relaxed text-zinc-400 group-hover:text-zinc-200">{msg.content.slice(0, 100)}{msg.content.length > 100 ? '...' : ''}</p>
               </div>
@@ -427,6 +431,9 @@ const App: React.FC = () => {
 
         <header className="absolute top-0 left-0 right-0 p-10 flex justify-end items-center gap-4 z-20">
           <div className="flex gap-4">
+            <button onClick={() => setIsTerminalChatOpen(!isTerminalChatOpen)} className={`p-4 rounded-2xl transition-all border ${isTerminalChatOpen ? 'bg-green-600 text-white border-green-500 shadow-lg shadow-green-500/20' : 'bg-zinc-900/50 text-zinc-400 border-zinc-800 hover:bg-zinc-800'}`}>
+              <MessageSquare className="w-6 h-6" />
+            </button>
             <button onClick={() => setIsSettingsOpen(!isSettingsOpen)} className="p-4 rounded-2xl transition-all border bg-zinc-900/50 text-zinc-400 border-zinc-800 hover:bg-zinc-800">
               <SettingsIcon className="w-6 h-6" />
             </button>
@@ -501,6 +508,8 @@ const App: React.FC = () => {
           <DesktopSettings onClose={() => setIsSettingsOpen(false)} /> :
           <Settings onClose={() => setIsSettingsOpen(false)} />
       )}
+      
+      {isTerminalChatOpen && <TerminalChat onClose={() => setIsTerminalChatOpen(false)} />}
     </div>
   );
 };

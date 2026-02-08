@@ -1,6 +1,6 @@
 export function authMiddleware(req, res, next) {
-  // Skip auth for pairing endpoints and health check
-  if (req.path.startsWith('/pair/') || req.path === '/api/health') {
+  // Skip auth for pairing endpoints, health check, and PC control
+  if (req.path.startsWith('/pair/') || req.path === '/api/health' || req.path.startsWith('/api/pc/')) {
     return next();
   }
   
