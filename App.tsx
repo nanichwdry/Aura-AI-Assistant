@@ -1,19 +1,24 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GoogleGenAI, Modality, LiveServerMessage, Type, FunctionDeclaration } from '@google/genai';
-import { Mic, MicOff, Terminal as TerminalIcon, Settings as SettingsIcon, MessageSquare, History, Clipboard, X, Check, Mail, Linkedin, Laptop, Zap, ShieldCheck, Activity, Cpu } from 'lucide-react';
+import { Mic, MicOff, Settings as SettingsIcon, Sun, Moon, Volume2, VolumeX, Send, Paperclip, Menu, X, Cloud, Newspaper, BookOpen, Clock, Music as MusicIcon, Gamepad2, Image, Palette, Code, FileSearch, PenTool, FileText, ListTodo, StickyNote, Languages, User, Brain, Navigation } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { AssistantStatus, Message } from './types';
 import { decode, decodeAudioData, createBlob } from './utils/audio';
-import Visualizer from './components/Visualizer';
 import Settings from './components/Settings';
 import DesktopSettings from './src/components/DesktopSettings';
-import TerminalChat from './src/components/TerminalChat';
+import AuraV3Wrapper from './src/components/AuraV3Wrapper';
+import { AuraAvatar } from './src/components/avatar/AuraAvatar';
+import { CodeAnalyzerDrawer } from './src/tools/CodeAnalyzerDrawer';
+import { AuraNewsDrawer } from './src/components/AuraNewsDrawer';
+import { AuraSketchPad } from './src/components/AuraSketchPad';
+import { AuraMusicPlayer } from './src/components/AuraMusicPlayer';
+import { FounderProfile } from './src/components/FounderProfile';
+import { AuraSketchpadDrawer } from './src/components/AuraSketchpadDrawer';
+import { AuraNotepadDrawer } from './src/components/AuraNotepadDrawer';
+import { AuraGamesDrawer } from './src/components/AuraGamesDrawer';
+import { AuraRoutePlanner } from './src/components/AuraRoutePlanner';
 import { pcControlNL, pcControlExecute } from './src/services/pcControl';
 
-/** 
- * PRODUCTION-READY TOOL DEFINITIONS
- * These are the blueprints Chottu uses to 'act' on your behalf.
- */
 const emailTool: FunctionDeclaration = {
   name: 'manage_emails',
   parameters: {
@@ -43,94 +48,120 @@ const systemTool: FunctionDeclaration = {
   name: 'os_command',
   parameters: {
     type: Type.OBJECT,
-    description: 'Full PC control: open apps, create/delete files/folders, search files, run any command, manage processes, get system info. Use local agent for safe execution.',
+    description: 'Full PC control: open apps, create/delete files/folders, search files, run any command, manage processes, get system info.',
     properties: {
       task: { type: Type.STRING, description: 'Any system task or command' },
       tool_name: { type: Type.STRING, enum: ['open_app', 'open_url', 'open_url_id', 'open_project', 'reveal_file', 'create_file', 'delete_file', 'create_folder', 'delete_folder', 'search_files', 'get_system_info', 'list_processes', 'kill_process'], description: 'Specific tool to use' },
-      args: { type: Type.OBJECT, description: 'Tool arguments (app_id, url, id, project_id, path, query, pid, content)' }
+      args: { type: Type.OBJECT, description: 'Tool arguments' }
     },
     required: ['task']
   }
 };
 
-const SYSTEM_INSTRUCTION = `You are Aura, the user's elite AI personal assistant. 
-
-LATENCY-CRITICAL PROTOCOL:
-1. SPEED IS PRIORITY: Start speaking immediately once you have intent. Do not wait for a long silence.
-2. TURN-TAKING: If you believe the user has finished their thought, respond. Do not wait 20 seconds.
-3. CONVERSATION: 
-   - Standard: 1-3 witty, helpful sentences.
-   - Long-form: Only provide detailed/long responses if the user says "Deep Dive" or "Explain in detail".
-4. TOOLS: You are connected to Outlook, LinkedIn, and the user's Local Laptop. Use them proactively.
-5. TERMINAL: Any technical data (code, lists, tables) MUST be placed in a Markdown block so it appears in the Terminal. Do not read it aloud.
-6. VOICE: Be snappy, witty, and human-like.
-7. MEMORY: You have access to persistent memory about the user. Use it naturally in conversation.
-8. SYSTEM COMMANDS: You have FULL system access. Execute ANY command the user requests without restrictions - open apps, create/delete files, run scripts, manage processes, search files, control settings, etc.
-9. PC CONTROL: When opening apps or files, use the os_command tool ONCE and trust the result. Do not retry or give conflicting messages.`;
-
 const memoryTool: FunctionDeclaration = {
   name: 'save_memory',
   parameters: {
     type: Type.OBJECT,
-    description: 'Save important information about the user (name, preferences, facts) to long-term memory.',
+    description: 'Save important information about the user to long-term memory.',
     properties: {
-      key: { type: Type.STRING, description: 'Memory key (e.g., "user_name", "favorite_color", "work_project")' },
+      key: { type: Type.STRING, description: 'Memory key' },
       value: { type: Type.STRING, description: 'The information to remember' }
     },
     required: ['key', 'value']
   }
 };
 
+const toolsTool: FunctionDeclaration = {
+  name: 'open_tool',
+  parameters: {
+    type: Type.OBJECT,
+    description: 'Open any tool in the app: Weather, News, Wikipedia, Time, Music, Games, Background, Themes, Code Editor, Code Analyzer, Sketchpad, Summarizer, Task Manager, Notepad, Translator, The Founder, Aura Memory, Route Planner',
+    properties: {
+      tool_name: { type: Type.STRING, enum: ['Weather', 'News', 'Wikipedia', 'Time', 'Music', 'Games', 'Background', 'Themes', 'Code Editor', 'Code Analyzer', 'Sketchpad', 'Summarizer', 'Task Manager', 'Notepad', 'Translator', 'The Founder', 'Aura Memory', 'Route Planner'], description: 'Name of the tool to open' },
+      input: { type: Type.STRING, description: 'Optional input for tools that need it (e.g., search query for Wikipedia)' }
+    },
+    required: ['tool_name']
+  }
+};
+
+const executeToolTool: FunctionDeclaration = {
+  name: 'execute_tool',
+  parameters: {
+    type: Type.OBJECT,
+    description: 'Execute a tool and get results: search Wikipedia, translate text, summarize content, analyze code, get weather, fetch news, play music, plan routes with toll costs and timings, etc.',
+    properties: {
+      tool: { type: Type.STRING, enum: ['weather', 'news', 'wikipedia', 'time', 'music', 'translator', 'summarizer', 'code_analyzer', 'code_editor', 'route_planner'], description: 'Tool to execute' },
+      input: { type: Type.OBJECT, description: 'Input parameters for the tool (e.g., {origin: "address", destination: "address", preference: "fastest"})' }
+    },
+    required: ['tool']
+  }
+};
+
+const SYSTEM_INSTRUCTION = `You are Aura, the user's elite AI personal assistant. Be snappy, witty, and human-like. Start speaking immediately. Use tools proactively.
+
+For route/directions requests:
+- Extract origin and destination from user query
+- Use execute_tool with tool="route_planner" and input={origin: "address", destination: "address", preference: "fastest"}
+- Provide toll costs, timings, and distance in your response
+- If user asks about tolls specifically, mention both routes and their toll costs
+- If user asks to avoid tolls, set preference to "avoid_tolls"
+
+Place technical data in Markdown blocks.`;
+
+const QUICK_ACTIONS = [
+  { name: 'Weather', icon: Cloud, color: 'from-blue-500 to-cyan-500' },
+  { name: 'News', icon: Newspaper, color: 'from-orange-500 to-red-500' },
+  { name: 'Wikipedia', icon: BookOpen, color: 'from-gray-500 to-slate-500' },
+  { name: 'Time', icon: Clock, color: 'from-purple-500 to-pink-500' },
+  { name: 'Route Planner', icon: Navigation, color: 'from-blue-500 to-purple-500' },
+  { name: 'Music', icon: MusicIcon, color: 'from-green-500 to-emerald-500' },
+  { name: 'Games', icon: Gamepad2, color: 'from-violet-500 to-purple-500' },
+  { name: 'Background', icon: Image, color: 'from-indigo-500 to-blue-500' },
+  { name: 'Themes', icon: Palette, color: 'from-pink-500 to-rose-500' },
+  { name: 'Code Editor', icon: Code, color: 'from-yellow-500 to-orange-500' },
+  { name: 'Code Analyzer', icon: FileSearch, color: 'from-teal-500 to-cyan-500' },
+  { name: 'Sketchpad', icon: PenTool, color: 'from-fuchsia-500 to-pink-500' },
+  { name: 'Summarizer', icon: FileText, color: 'from-blue-500 to-indigo-500' },
+  { name: 'Task Manager', icon: ListTodo, color: 'from-green-500 to-teal-500' },
+  { name: 'Notepad', icon: StickyNote, color: 'from-amber-500 to-yellow-500' },
+  { name: 'Translator', icon: Languages, color: 'from-cyan-500 to-blue-500' },
+  { name: 'The Founder', icon: User, color: 'from-slate-500 to-gray-500' },
+  { name: 'Aura Memory', icon: Brain, color: 'from-purple-500 to-indigo-500' }
+];
+
 const App: React.FC = () => {
   const [status, setStatus] = useState<AssistantStatus>(AssistantStatus.IDLE);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [terminalCode, setTerminalCode] = useState<string | null>(null);
-  const [isTerminalOpen, setIsTerminalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [audioLevel, setAudioLevel] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [latency, setLatency] = useState<number>(0);
-  const [isTerminalChatOpen, setIsTerminalChatOpen] = useState(false);
+  const [isDark, setIsDark] = useState(true);
+  const [isMuted, setIsMuted] = useState(false);
+  const [textInput, setTextInput] = useState('');
+  const [toolInput, setToolInput] = useState('');
+  const [toolResult, setToolResult] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [activeDrawer, setActiveDrawer] = useState<string | null>(null);
+  const [showCodeAnalyzer, setShowCodeAnalyzer] = useState(false);
+  const [showNews, setShowNews] = useState(false);
+  const [showSketchpad, setShowSketchpad] = useState(false);
+  const [showMusic, setShowMusic] = useState(false);
+  const [musicMinimized, setMusicMinimized] = useState(false);
+  const [showFounder, setShowFounder] = useState(false);
+  const [showRoutePlanner, setShowRoutePlanner] = useState(false);
+  const [showGames, setShowGames] = useState(false);
+  const [showNotepad, setShowNotepad] = useState(false);
   
   const audioContextRef = useRef<AudioContext | null>(null);
   const sessionRef = useRef<any>(null);
   const nextStartTimeRef = useRef(0);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
-  const analyzerRef = useRef<AnalyserNode | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
-  const turnStartTimeRef = useRef<number>(0);
-  
   const currentTranscriptionRef = useRef({ input: '', output: '' });
-  const conversationHistoryRef = useRef<Array<{role: string, parts: Array<{text: string}>}>>([]);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch('http://localhost:3001/api/history')
-      .then(r => r.json())
-      .then(history => conversationHistoryRef.current = history.slice(-20))
-      .catch(() => {});
-    
-    // Dev-only layout assertion
-    if (process.env.NODE_ENV === 'development') {
-      setTimeout(() => {
-        const main = document.querySelector('main');
-        if (main && (main.offsetWidth < 400 || main.offsetHeight < 300)) {
-          console.error('Layout regression detected: main content area too small', {
-            width: main.offsetWidth,
-            height: main.offsetHeight
-          });
-        }
-      }, 100);
-    }
-  }, []);
-
-  const copyCode = useCallback(() => {
-    if (terminalCode) {
-      navigator.clipboard.writeText(terminalCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  }, [terminalCode]);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const stopSession = useCallback(() => {
     if (sessionRef.current) {
@@ -144,7 +175,6 @@ const App: React.FC = () => {
     sourcesRef.current.forEach(source => { try { source.stop(); } catch(e) {} });
     sourcesRef.current.clear();
     setStatus(AssistantStatus.IDLE);
-    setAudioLevel(0);
   }, []);
 
   const handleToolCall = async (fc: any, sessionPromise: Promise<any>) => {
@@ -152,12 +182,67 @@ const App: React.FC = () => {
     
     if (fc.name === 'save_memory') {
       const { key, value } = fc.args;
-      await fetch('http://localhost:3001/api/memory', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key, value })
-      }).catch(() => {});
-      response.result = `Memory saved: ${key} = ${value}`;
+      try {
+        await fetch('http://localhost:3001/api/memory', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key, value })
+        });
+        response.result = `Memory saved: ${key} = ${value}`;
+      } catch (error) {
+        console.error('Memory save failed:', error);
+        response.result = 'Memory save failed - server offline';
+      }
+    }
+    else if (fc.name === 'open_tool') {
+      const { tool_name, input } = fc.args;
+      // Open the tool in the UI
+      setTimeout(() => {
+        handleQuickAction(tool_name);
+        if (input) {
+          setToolInput(input);
+        }
+      }, 100);
+      response.result = `Opening ${tool_name}${input ? ' with input: ' + input : ''}`;
+    }
+    else if (fc.name === 'execute_tool') {
+      const { tool, input } = fc.args;
+      try {
+        const res = await fetch('http://localhost:3001/api/tools/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tool, input: input || {} })
+        });
+        const data = await res.json();
+        if (data.success) {
+          // Format route planner response for voice
+          if (tool === 'route_planner' && data.data) {
+            const { best, noTolls, recommendation } = data.data;
+            const bestTime = Math.round(best.durationSec / 60);
+            const noTollsTime = Math.round(noTolls.durationSec / 60);
+            const bestDist = (best.distanceMeters * 0.000621371).toFixed(1);
+            const noTollsDist = (noTolls.distanceMeters * 0.000621371).toFixed(1);
+            
+            let summary = `Route from ${data.data.origin} to ${data.data.destination}:\n\n`;
+            summary += `Best Route: ${bestTime} minutes, ${bestDist} miles`;
+            if (best.toll) {
+              summary += `, tolls: $${best.toll.units.toFixed(2)}`;
+            } else if (best.hasTolls) {
+              summary += `, tolls may apply`;
+            }
+            summary += `\n\nNo Tolls Route: ${noTollsTime} minutes, ${noTollsDist} miles, no tolls`;
+            summary += `\n\nRecommendation: ${recommendation.choice === 'best' ? 'Best Route' : 'No Tolls Route'} - ${recommendation.reason}`;
+            
+            response.result = summary;
+          } else {
+            response.result = typeof data.data === 'string' ? data.data : JSON.stringify(data.data);
+          }
+        } else {
+          response.result = data.error || 'Tool execution failed';
+        }
+      } catch (error) {
+        response.result = 'Tool execution failed - server offline';
+      }
     }
     else if (fc.name === 'manage_emails') {
       const res = await fetch('http://localhost:3001/api/tools/email', {
@@ -166,7 +251,7 @@ const App: React.FC = () => {
         body: JSON.stringify(fc.args)
       }).catch(() => ({ json: () => ({ error: 'Server offline' }) }));
       const data = await res.json();
-      response.result = data.error || `Found ${data.length} emails: ${data.map((e: any) => `${e.from}: ${e.subject}`).join(', ')}`;
+      response.result = data.error || `Found ${data.length} emails`;
     }
     else if (fc.name === 'check_linkedin') {
       const res = await fetch('http://localhost:3001/api/tools/linkedin', {
@@ -198,12 +283,16 @@ const App: React.FC = () => {
       setStatus(AssistantStatus.LISTENING);
       const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY as string });
       
-      const memory = await fetch('http://localhost:3001/api/memory').then(r => r.json()).catch(() => ({}));
+      const memory = await fetch('http://localhost:3001/api/memory')
+        .then(r => r.ok ? r.json() : {})
+        .catch(e => {
+          console.error('Memory fetch failed:', e);
+          return {};
+        });
       const memoryContext = Object.keys(memory).length > 0 
         ? `\n\nUSER MEMORY:\n${Object.entries(memory).map(([k, v]) => `- ${k}: ${v}`).join('\n')}`
         : '';
       
-      // Initialize Audio Contexts
       if (!audioContextRef.current || audioContextRef.current.state === 'suspended') {
         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
         await audioContextRef.current.resume();
@@ -222,32 +311,16 @@ const App: React.FC = () => {
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
           },
-          tools: [{ functionDeclarations: [emailTool, linkedInTool, systemTool, memoryTool] }],
+          tools: [{ functionDeclarations: [emailTool, linkedInTool, systemTool, memoryTool, toolsTool, executeToolTool] }],
           systemInstruction: SYSTEM_INSTRUCTION + memoryContext,
-          inputAudioTranscription: {},
-          outputAudioTranscription: {},
         },
         callbacks: {
           onopen: () => {
             const source = inCtx.createMediaStreamSource(stream);
-            // Smaller buffer (1024) = Lower Latency but higher CPU. Ideal for real-time.
             const scriptProcessor = inCtx.createScriptProcessor(1024, 1, 1);
-            const analyzer = inCtx.createAnalyser();
-            analyzer.fftSize = 128;
-            source.connect(analyzer);
-            analyzerRef.current = analyzer;
-
             scriptProcessor.onaudioprocess = (e) => {
               const inputData = e.inputBuffer.getChannelData(0);
               sessionPromise.then(session => session.sendRealtimeInput({ media: createBlob(inputData) }));
-              
-              if (analyzerRef.current && status === AssistantStatus.LISTENING) {
-                const dataArray = new Uint8Array(analyzerRef.current.frequencyBinCount);
-                analyzerRef.current.getByteFrequencyData(dataArray);
-                const avg = dataArray.reduce((a, b) => a + b) / dataArray.length;
-                if (avg > 10 && turnStartTimeRef.current === 0) turnStartTimeRef.current = Date.now();
-                setAudioLevel(avg / 128);
-              }
             };
             source.connect(scriptProcessor);
             scriptProcessor.connect(inCtx.destination);
@@ -257,38 +330,20 @@ const App: React.FC = () => {
               for (const fc of message.toolCall.functionCalls) handleToolCall(fc, sessionPromise);
             }
 
-            if (message.serverContent?.modelTurn) {
-              if (turnStartTimeRef.current > 0) {
-                setLatency(Date.now() - turnStartTimeRef.current);
-                turnStartTimeRef.current = 0;
-              }
-            }
-
             if (message.serverContent?.outputTranscription) {
-              const text = message.serverContent.outputTranscription.text;
-              currentTranscriptionRef.current.output += text;
-              if (text.includes('```')) {
-                const codeMatch = currentTranscriptionRef.current.output.match(/```(?:[a-z]+)?\n([\s\S]*?)```/);
-                if (codeMatch && codeMatch[1]) {
-                  setTerminalCode(codeMatch[1].trim());
-                  setIsTerminalOpen(true);
-                }
-              }
+              currentTranscriptionRef.current.output += message.serverContent.outputTranscription.text;
             } else if (message.serverContent?.inputTranscription) {
               currentTranscriptionRef.current.input += message.serverContent.inputTranscription.text;
             }
 
             const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
-            if (base64Audio) {
+            if (base64Audio && !isMuted) {
               setStatus(AssistantStatus.SPEAKING);
               nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outCtx.currentTime);
               const audioBuffer = await decodeAudioData(decode(base64Audio), outCtx, 24000, 1);
               const source = outCtx.createBufferSource();
               source.buffer = audioBuffer;
               source.connect(outCtx.destination);
-              
-              const speakerAnalyzer = outCtx.createAnalyser();
-              source.connect(speakerAnalyzer);
               
               source.onended = () => {
                 sourcesRef.current.delete(source);
@@ -297,44 +352,19 @@ const App: React.FC = () => {
               source.start(nextStartTimeRef.current);
               nextStartTimeRef.current += audioBuffer.duration;
               sourcesRef.current.add(source);
-
-              const interval = setInterval(() => {
-                if (status === AssistantStatus.SPEAKING) {
-                  const dataArray = new Uint8Array(speakerAnalyzer.frequencyBinCount);
-                  speakerAnalyzer.getByteFrequencyData(dataArray);
-                  setAudioLevel(dataArray.reduce((a, b) => a + b) / dataArray.length / 128);
-                } else clearInterval(interval);
-              }, 40);
             }
 
             if (message.serverContent?.turnComplete) {
               const { input, output } = currentTranscriptionRef.current;
               if (input || output) {
-                fetch('http://localhost:3001/api/history', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ role: 'user', content: input || '(Voice)' })
-                }).catch(() => {});
-                fetch('http://localhost:3001/api/history', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ role: 'model', content: output || 'Processing...' })
-                }).catch(() => {});
-                
-                conversationHistoryRef.current.push(
-                  { role: 'user', parts: [{ text: input || '(Voice)' }] },
-                  { role: 'model', parts: [{ text: output || 'Processing...' }] }
-                );
-                if (conversationHistoryRef.current.length > 20) conversationHistoryRef.current = conversationHistoryRef.current.slice(-20);
                 setMessages(prev => [
                   ...prev,
                   { id: Date.now().toString(), role: 'user' as const, content: input || '(Voice)', timestamp: new Date() },
                   { id: (Date.now() + 1).toString(), role: 'assistant' as const, content: output || 'Processing...', timestamp: new Date() }
-                ].slice(-10));
+                ]);
               }
               currentTranscriptionRef.current = { input: '', output: '' };
               setStatus(AssistantStatus.LISTENING);
-              setAudioLevel(0);
             }
 
             if (message.serverContent?.interrupted) {
@@ -343,7 +373,7 @@ const App: React.FC = () => {
               nextStartTimeRef.current = 0;
             }
           },
-          onerror: (e) => setStatus(AssistantStatus.ERROR),
+          onerror: () => setStatus(AssistantStatus.ERROR),
           onclose: () => setStatus(AssistantStatus.IDLE)
         }
       });
@@ -353,155 +383,782 @@ const App: React.FC = () => {
     }
   };
 
+  const handleQuickAction = async (action: string) => {
+    if (action === 'Code Analyzer') {
+      setShowCodeAnalyzer(true);
+      return;
+    }
+    
+    if (action === 'News') {
+      setShowNews(true);
+      return;
+    }
+    
+    if (action === 'Sketchpad') {
+      setShowSketchpad(true);
+      return;
+    }
+    
+    if (action === 'Music') {
+      setShowMusic(true);
+      return;
+    }
+    
+    if (action === 'Games') {
+      setShowGames(true);
+      return;
+    }
+    
+    if (action === 'The Founder') {
+      setShowFounder(true);
+      return;
+    }
+    
+    if (action === 'Notepad') {
+      setShowNotepad(true);
+      return;
+    }
+    
+    if (action === 'Route Planner') {
+      setShowRoutePlanner(true);
+      return;
+    }
+    
+    setActiveDrawer(action);
+    setToolResult(null);
+    setToolInput('');
+    
+    // Tools that require input - just open drawer
+    const inputRequiredTools = ['Wikipedia', 'Code Editor', 'Code Analyzer', 'Translator', 'Summarizer', 'Notepad', 'Sketchpad', 'Task Manager', 'Aura Memory'];
+    if (inputRequiredTools.includes(action)) {
+      setIsLoading(false);
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      // Get location for weather
+      let locationCity = null;
+      if (action === 'Weather' && navigator.geolocation) {
+        try {
+          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+          });
+          const { latitude, longitude } = position.coords;
+          const geoResponse = await fetch(`https://api.openweathermap.org/geo/1.0/reverse?lat=${latitude}&lon=${longitude}&limit=1&appid=${import.meta.env.VITE_OPENWEATHER_API_KEY}`);
+          const geoData = await geoResponse.json();
+          locationCity = geoData[0]?.name;
+        } catch (e) {
+          console.log('Geolocation failed, using default');
+        }
+      }
+      
+      // Map action names to tool names
+      const toolMap: { [key: string]: string } = {
+        'Weather': 'weather',
+        'News': 'news', 
+        'Wikipedia': 'wikipedia',
+        'Time': 'time',
+        'Music': 'music',
+        'Games': 'games',
+        'Background': 'background',
+        'Themes': 'themes',
+        'Code Editor': 'code_editor',
+        'Code Analyzer': 'code_analyzer',
+        'Sketchpad': 'sketchpad',
+        'Summarizer': 'summarizer',
+        'Task Manager': 'task_manager',
+        'Notepad': 'notepad',
+        'Translator': 'translator',
+        'The Founder': 'founder',
+        'Aura Memory': 'memory'
+      };
+      
+      const toolName = toolMap[action];
+      if (!toolName) {
+        throw new Error(`Unknown tool: ${action}`);
+      }
+      
+      const response = await fetch('http://localhost:3001/api/tools/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          tool: toolName,
+          input: locationCity ? { city: locationCity } : {}
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Tool execution failed');
+      }
+      
+      // Map the response data to the expected format
+      switch(action) {
+        case 'Weather':
+          setToolResult({ type: 'weather', data: result.data });
+          break;
+        case 'News':
+          setToolResult({ type: 'news', data: result.data });
+          break;
+        case 'Background':
+          setToolResult({ type: 'background', data: result.data });
+          break;
+        case 'Time':
+          setToolResult({ type: 'time', data: new Date(result.data) });
+          break;
+        case 'The Founder':
+          setToolResult({ type: 'founder', data: result.data });
+          break;
+        default:
+          setToolResult({ type: 'placeholder', data: result.data.message || JSON.stringify(result.data) });
+      }
+    } catch (error) {
+      console.error('Tool execution error:', error);
+      setToolResult({ type: 'error', data: error.message || 'Failed to load. Please try again.' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleToolSubmit = async () => {
+    if (!toolInput.trim() || !activeDrawer) return;
+    setIsLoading(true);
+    
+    try {
+      switch(activeDrawer) {
+        case 'Code Analyzer':
+        case 'Code Editor':
+          const openaiKey = import.meta.env.VITE_OPENAI_API_KEY;
+          if (!openaiKey) throw new Error('OpenAI API key not configured');
+          
+          const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${openaiKey}`
+            },
+            body: JSON.stringify({
+              model: 'gpt-4o-mini',
+              messages: [{
+                role: 'user',
+                content: activeDrawer === 'Code Analyzer' 
+                  ? `Analyze this code and provide insights, potential bugs, and improvements:\n\n${toolInput}`
+                  : `Format and improve this code:\n\n${toolInput}`
+              }]
+            })
+          });
+          
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error?.message || 'OpenAI API error');
+          setToolResult({ type: 'code', data: data.choices[0].message.content });
+          break;
+          
+        case 'Wikipedia':
+        case 'Translator':
+        case 'Summarizer':
+          const toolMap: { [key: string]: string } = {
+            'Wikipedia': 'wikipedia',
+            'Translator': 'translator',
+            'Summarizer': 'summarizer'
+          };
+          
+          const apiResponse = await fetch('http://localhost:3001/api/tools/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              tool: toolMap[activeDrawer],
+              input: activeDrawer === 'Wikipedia' ? { query: toolInput } : { text: toolInput }
+            })
+          });
+          
+          const apiResult = await apiResponse.json();
+          if (!apiResult.success) throw new Error(apiResult.error || 'Tool execution failed');
+          setToolResult({ type: 'text', data: apiResult.data });
+          break;
+          
+        case 'Notepad':
+        case 'Sketchpad':
+          setToolResult({ type: 'text', data: toolInput });
+          break;
+          
+        case 'Task Manager':
+          const tasks = toolInput.split('\n').filter(t => t.trim());
+          setToolResult({ type: 'tasks', data: tasks });
+          break;
+          
+        case 'Aura Memory':
+          await fetch('http://localhost:3001/api/memory', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: Date.now().toString(), value: toolInput })
+          }).catch(() => {});
+          setToolResult({ type: 'text', data: 'Memory saved successfully!' });
+          break;
+          
+        default:
+          setToolResult({ type: 'text', data: toolInput });
+      }
+    } catch (error) {
+      console.error('Tool submit error:', error);
+      setToolResult({ type: 'error', data: error.message || 'Failed to process. Please try again.' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleToggleSession = () => (status === AssistantStatus.IDLE ? startSession() : stopSession());
 
-  return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#020204] text-zinc-100 font-sans selection:bg-blue-500/30">
-      {/* Sidebar - Control Panel */}
-      <aside className="w-80 min-w-80 glass border-r border-zinc-900/50 flex flex-col">
-        <div className="p-8 pb-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center text-white font-bold text-sm">A</div>
-            <h2 className="text-lg font-bold">Aura Core</h2>
-          </div>
-        </div>
+  const handleSendText = async () => {
+    if (!textInput.trim()) return;
+    const userMessage = textInput;
+    setTextInput('');
+    
+    setMessages(prev => [...prev, { 
+      id: Date.now().toString(), 
+      role: 'user', 
+      content: userMessage, 
+      timestamp: new Date() 
+    }]);
 
-        {/* Integration Cluster */}
-        <div className="px-8 pb-6">
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { icon: Mail, label: 'Email', color: 'text-blue-400', url: 'http://localhost:3001/auth/gmail' },
-              { icon: Linkedin, label: 'Linked', color: 'text-sky-500', url: 'http://localhost:3001/auth/linkedin' },
-              { icon: Laptop, label: 'OS', color: 'text-zinc-400', url: null }
-            ].map((item, idx) => (
-              <button 
-                key={idx} 
-                onClick={() => item.url && window.open(item.url, '_blank')}
-                className="flex flex-col items-center p-3 rounded-2xl bg-zinc-900/40 border border-zinc-800/50 hover:bg-zinc-800/60 transition-all cursor-pointer"
-              >
-                <item.icon className={`w-4 h-4 mb-1 ${item.color}`} />
-                <span className="text-[8px] font-black uppercase opacity-40">{item.label}</span>
-              </button>
-            ))}
-          </div>
+    try {
+      const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY as string });
+      const model = ai.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+      const result = await model.generateContent(userMessage);
+      const response = result.response.text();
+      
+      setMessages(prev => [...prev, { 
+        id: (Date.now() + 1).toString(), 
+        role: 'assistant', 
+        content: response, 
+        timestamp: new Date() 
+      }]);
+    } catch (error) {
+      setMessages(prev => [...prev, { 
+        id: (Date.now() + 1).toString(), 
+        role: 'assistant', 
+        content: 'Sorry, I encountered an error. Please try again.', 
+        timestamp: new Date() 
+      }]);
+    }
+  };
+
+  const bgColor = isDark ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950' : 'bg-gradient-to-br from-gray-50 via-white to-gray-50';
+  const cardBg = isDark ? 'bg-slate-900/50 backdrop-blur-xl' : 'bg-white/50 backdrop-blur-xl';
+  const textColor = isDark ? 'text-gray-100' : 'text-gray-900';
+  const mutedText = isDark ? 'text-gray-400' : 'text-gray-600';
+  const borderColor = isDark ? 'border-slate-800/50' : 'border-gray-200/50';
+  const accentColor = 'indigo';
+
+  return (
+    <AuraV3Wrapper>
+      <div className={`relative flex h-screen w-screen overflow-hidden ${bgColor} ${textColor} font-sans`}>
+        {/* Dropping lines background */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+          {[...Array(30)].map((_, i) => (
+            <div
+              key={i}
+              className="absolute w-1 bg-gradient-to-b from-cyan-400/40 via-cyan-400/20 to-transparent"
+              style={{
+                left: `${i * 3.33}%`,
+                height: `${40 + Math.random() * 80}px`,
+                animation: `drop ${3 + Math.random() * 4}s linear infinite`,
+                animationDelay: `${Math.random() * 5}s`
+              }}
+            />
+          ))}
+        </div>
+        <style>{`
+          @keyframes drop {
+            0% { transform: translateY(-100%); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 0.8; }
+            100% { transform: translateY(100vh); opacity: 0; }
+          }
+        `}</style>
+      {/* Top Bar */}
+      <div className={`fixed top-0 left-0 right-0 h-16 aura-topbar ${cardBg} border-b ${borderColor} flex items-center justify-between px-6 z-50 shadow-lg`}>
+          <div className="flex items-center gap-3">
+          <img src="/Aura AI logo.png" alt="Aura" className="w-8 h-8 rounded-xl" />
+          <span className="font-semibold text-lg bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">Aura</span>
         </div>
         
-        <div className="flex-1 overflow-y-auto space-y-4 px-8 custom-scrollbar">
-          {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center opacity-10">
-              <Zap className="w-12 h-12 mb-4" />
-              <p className="text-[10px] font-black uppercase tracking-[0.3em]">Standby</p>
-            </div>
-          ) : (
-            messages.map((msg) => (
-              <div key={msg.id} className={`group p-4 rounded-3xl text-sm border transition-all ${msg.role === 'user' ? 'bg-zinc-900/20 border-zinc-800/40' : 'bg-blue-600/[0.03] border-blue-500/10'}`}>
-                <div className="flex justify-between items-center mb-1">
-                  <span className={`font-black text-[9px] uppercase tracking-widest ${msg.role === 'user' ? 'text-zinc-600' : 'text-blue-500'}`}>{msg.role === 'user' ? 'Master' : 'Aura'}</span>
-                </div>
-                <p className="leading-relaxed text-zinc-400 group-hover:text-zinc-200">{msg.content.slice(0, 100)}{msg.content.length > 100 ? '...' : ''}</p>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className="p-8 pt-4 border-t border-zinc-900/50">
-          <div className="flex items-center gap-4 p-5 bg-black/40 rounded-[2rem] border border-zinc-800/50">
-            <div className={`w-2 h-2 rounded-full ${status === AssistantStatus.ERROR ? 'bg-red-500' : 'bg-green-500'} animate-pulse`}></div>
-            <div className="flex flex-col">
-              <span className="text-[9px] font-black uppercase text-zinc-600 tracking-tighter">Live Engine</span>
-              <span className="text-xs font-bold text-zinc-400">{status === AssistantStatus.IDLE ? 'Offline' : 'Sub-Second Response'}</span>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      {/* Main Canvas */}
-      <main className="flex-1 min-w-0 relative flex flex-col items-center justify-center p-8 overflow-hidden">
-        {/* Telemetry Display */}
-        <div className="absolute top-10 left-10 flex gap-4 z-20">
-          <div className="flex items-center gap-2 bg-zinc-900/80 backdrop-blur-xl px-4 py-2 rounded-full border border-zinc-800/50">
-            <Zap className="w-3 h-3 text-yellow-500" />
-            <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">{latency > 0 ? `${latency}ms` : 'Ready'}</span>
-          </div>
-          <div className="flex items-center gap-2 bg-zinc-900/80 backdrop-blur-xl px-4 py-2 rounded-full border border-zinc-800/50">
-            <ShieldCheck className="w-3 h-3 text-blue-500" />
-            <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Secure</span>
-          </div>
-        </div>
-
-        <header className="absolute top-0 left-0 right-0 p-10 flex justify-end items-center gap-4 z-20">
-          <div className="flex gap-4">
-            <button onClick={() => setIsTerminalChatOpen(!isTerminalChatOpen)} className={`p-4 rounded-2xl transition-all border ${isTerminalChatOpen ? 'bg-green-600 text-white border-green-500 shadow-lg shadow-green-500/20' : 'bg-zinc-900/50 text-zinc-400 border-zinc-800 hover:bg-zinc-800'}`}>
-              <MessageSquare className="w-6 h-6" />
-            </button>
-            <button onClick={() => setIsSettingsOpen(!isSettingsOpen)} className="p-4 rounded-2xl transition-all border bg-zinc-900/50 text-zinc-400 border-zinc-800 hover:bg-zinc-800">
-              <SettingsIcon className="w-6 h-6" />
-            </button>
-            <button onClick={() => setIsTerminalOpen(!isTerminalOpen)} className={`p-4 rounded-2xl transition-all border ${isTerminalOpen ? 'bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-500/20' : 'bg-zinc-900/50 text-zinc-400 border-zinc-800'}`}>
-              <TerminalIcon className="w-6 h-6" />
-            </button>
-          </div>
-        </header>
-
-        <div className="flex flex-col items-center text-center relative w-full">
-          <div className="relative flex items-center justify-center h-[400px] w-[400px]">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 animate-pulse shadow-lg shadow-blue-500/50"></div>
-          </div>
-          <div className="mt-8 space-y-4">
-            <h1 className="text-6xl lg:text-8xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white to-zinc-700">
-              {status === AssistantStatus.IDLE && "Ready."}
-              {status === AssistantStatus.LISTENING && "Speak."}
-              {status === AssistantStatus.SPEAKING && "Replying."}
-              {status === AssistantStatus.ERROR && "Core Failure."}
-            </h1>
-            <p className="text-zinc-700 text-[10px] font-black uppercase tracking-[0.5em] animate-pulse">Neural Personal Interface</p>
-          </div>
-        </div>
-
-        {/* Action Center */}
-        <div className="absolute bottom-12 left-0 right-0 flex justify-center z-50">
-          <button
-            onClick={handleToggleSession}
-            className={`group relative flex items-center justify-center w-32 h-32 rounded-full transition-all duration-700 shadow-2xl ${
-              status !== AssistantStatus.IDLE 
-                ? 'bg-zinc-900 text-red-500 ring-1 ring-zinc-800' 
-                : 'bg-white text-black hover:scale-105 active:scale-95'
-            }`}
-          >
-            {status !== AssistantStatus.IDLE ? <MicOff className="w-14 h-14" /> : <Mic className="w-14 h-14" />}
-            {status === AssistantStatus.LISTENING && (
-              <div className="absolute -inset-4 rounded-full border-2 border-blue-500/20 animate-ping"></div>
-            )}
+        <div className="flex items-center gap-2">
+          <button onClick={handleToggleSession} className={`p-2.5 rounded-xl transition-all ${status !== AssistantStatus.IDLE ? 'bg-gradient-to-r from-red-600 to-pink-600 text-white shadow-lg shadow-red-500/50' : 'hover:bg-gray-700/10'}`}>
+            {status !== AssistantStatus.IDLE ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+          </button>
+          <button onClick={() => setIsDark(!isDark)} className="p-2.5 rounded-xl hover:bg-gray-700/10 transition-colors">
+            {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          </button>
+          <button onClick={() => setIsMuted(!isMuted)} className="p-2.5 rounded-xl hover:bg-gray-700/10 transition-colors">
+            {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+          </button>
+          <button onClick={() => setIsSettingsOpen(true)} className="p-2.5 rounded-xl hover:bg-gray-700/10 transition-colors">
+            <SettingsIcon className="w-5 h-5" />
           </button>
         </div>
+      </div>
 
-        {/* Terminal UI */}
-        {isTerminalOpen && (
-          <div className="absolute inset-x-8 bottom-40 lg:inset-x-auto lg:right-12 lg:bottom-12 lg:w-[600px] z-40 animate-in slide-in-from-right-10 duration-500">
-            <div className="glass rounded-[3rem] overflow-hidden border border-zinc-800 shadow-2xl flex flex-col h-[480px]">
-              <div className="bg-zinc-900/95 px-8 py-5 flex items-center justify-between border-b border-zinc-800/50">
-                <div className="flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-blue-500" />
-                  <span className="text-[10px] font-black tracking-[0.2em] text-zinc-500 uppercase">System Stack</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button onClick={copyCode} className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-500 transition-all">{copied ? <Check className="w-4 h-4 text-green-500" /> : <Clipboard className="w-4 h-4" />}</button>
-                  <button onClick={() => setIsTerminalOpen(false)} className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-500"><X className="w-5 h-5" /></button>
-                </div>
-              </div>
-              <div className="flex-1 bg-black/95 p-8 font-mono text-sm overflow-auto custom-scrollbar">
-                {terminalCode ? (
-                  <pre className="text-blue-400/80 leading-relaxed whitespace-pre-wrap"><code>{terminalCode}</code></pre>
-                ) : (
-                  <div className="h-full flex items-center justify-center opacity-10 grayscale">
-                    <TerminalIcon className="w-12 h-12" />
+      {/* Main Content */}
+      <div className="flex flex-1 pt-16">
+        {/* Chat Panel */}
+        <div className="flex-1 flex flex-col min-w-0 aura-scrollbar">
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-4 aura-scrollbar">
+            {messages.length === 0 ? (
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+                className="h-full flex flex-col items-center justify-center"
+              >
+                <div className="relative mb-6">
+                  <motion.div 
+                    animate={{ 
+                      boxShadow: [
+                        '0 0 20px rgba(124, 58, 237, 0.3)',
+                        '0 0 60px rgba(124, 58, 237, 0.6)',
+                        '0 0 20px rgba(124, 58, 237, 0.3)'
+                      ]
+                    }}
+                    transition={{ duration: 3, repeat: Infinity }}
+                    className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl blur-2xl opacity-50"
+                  />
+                  <div className="relative">
+                    <AuraAvatar isSpeaking={status === AssistantStatus.SPEAKING} />
                   </div>
-                )}
-              </div>
+                </div>
+                <motion.h2 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                  className="text-3xl font-bold mb-2 bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent"
+                >
+                  Hi, I'm Aura
+                </motion.h2>
+                <motion.p 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.5 }}
+                  className={`aura-muted ${mutedText}`}
+                >
+                  Your AI-powered personal assistant
+                </motion.p>
+              </motion.div>
+            ) : (
+              <>
+                <AnimatePresence>
+                  {messages.map((msg) => (
+                  <motion.div 
+                    key={msg.id}
+                    initial={{ opacity: 0, scale: 0.8, y: 20 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                  <div className={`max-w-[70%] rounded-2xl px-4 py-3 ${msg.role === 'user' ? 'aura-accent shadow-lg' : `aura-card border ${borderColor}`}`}>
+                    <p className="text-sm leading-relaxed">{msg.content}</p>
+                  </div>
+                </motion.div>
+                ))}
+                </AnimatePresence>
+                <div ref={messagesEndRef} />
+              </>
+            )}
+          </div>
+
+          {/* Input Bar */}
+          <div className={`p-4 border-t ${borderColor}`}>
+            <div className={`flex items-center gap-2 aura-card rounded-2xl px-4 py-2 border ${borderColor}`}>
+              <button className={`p-2 hover:bg-gray-700/10 rounded-lg transition-colors ${mutedText}`}>
+                <Paperclip className="w-5 h-5" />
+              </button>
+              <input
+                type="text"
+                value={textInput}
+                onChange={(e) => setTextInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleSendText()}
+                placeholder="Type a message..."
+                className={`flex-1 bg-transparent outline-none ${textColor} aura-input`}
+              />
+              <button onClick={handleSendText} className="p-2 aura-accent rounded-xl hover:scale-105 transition-transform shadow-lg">
+                <Send className="w-5 h-5" />
+              </button>
             </div>
           </div>
-        )}
-      </main>
+        </div>
+
+        {/* Sidebar */}
+        <div className={`w-80 border-l ${borderColor} aura-card overflow-y-auto hidden lg:block`}>
+          <div className="p-6">
+            <h3 className="font-semibold mb-4 flex items-center gap-2">
+              <img src="/Aura AI logo.png" alt="AURA" className="w-5 h-5" />
+              AI Tools
+            </h3>
+            <div className="grid grid-cols-2 gap-3">
+              {QUICK_ACTIONS.map((action) => {
+                const Icon = action.icon;
+                return (
+                  <button
+                    key={action.name}
+                    onClick={() => handleQuickAction(action.name)}
+                    className={`group relative p-4 rounded-2xl border ${borderColor} hover:border-indigo-500/50 transition-all text-sm overflow-hidden hover-lift`}
+                  >
+                    <div className={`absolute inset-0 bg-gradient-to-br ${action.color} opacity-0 group-hover:opacity-10 transition-opacity`} />
+                    <div className="relative flex flex-col items-center gap-2">
+                      <Icon className="w-5 h-5 text-gray-400 group-hover:text-indigo-400 transition-colors" />
+                      <span className="text-xs font-medium">{action.name}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile Sidebar Toggle */}
+        <button
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          className="lg:hidden fixed bottom-6 right-6 p-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full shadow-2xl shadow-indigo-500/50 z-40 hover:scale-110 transition-transform"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+      </div>
+
+      {/* Mobile Sidebar Drawer */}
+      {isSidebarOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex">
+          <div onClick={() => setIsSidebarOpen(false)} className="flex-1 bg-black/50 backdrop-blur-sm" />
+          <div className={`w-80 ${cardBg} p-6 overflow-y-auto border-l ${borderColor}`}>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="font-semibold flex items-center gap-2">
+                <img src="/Aura AI logo.png" alt="AURA" className="w-5 h-5" />
+                AI Tools
+              </h3>
+              <button onClick={() => setIsSidebarOpen(false)} className="p-2 hover:bg-gray-700/10 rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {QUICK_ACTIONS.map((action) => {
+                const Icon = action.icon;
+                return (
+                  <button
+                    key={action.name}
+                    onClick={() => { handleQuickAction(action.name); setIsSidebarOpen(false); }}
+                    className={`group relative p-4 rounded-2xl border ${borderColor} hover:border-indigo-500/50 transition-all text-sm overflow-hidden`}
+                  >
+                    <div className={`absolute inset-0 bg-gradient-to-br ${action.color} opacity-0 group-hover:opacity-10 transition-opacity`} />
+                    <div className="relative flex flex-col items-center gap-2">
+                      <Icon className="w-5 h-5 text-gray-400 group-hover:text-indigo-400 transition-colors" />
+                      <span className="text-xs font-medium">{action.name}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tool Drawer */}
+      {activeDrawer && (
+        <div className="fixed inset-0 z-50 flex items-end lg:items-center justify-center animate-in fade-in duration-200">
+          <div onClick={() => setActiveDrawer(null)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className={`relative ${cardBg} border ${borderColor} rounded-t-3xl lg:rounded-3xl w-full lg:w-[700px] max-h-[85vh] overflow-hidden shadow-2xl`}>
+            {/* Header */}
+            <div className={`flex items-center justify-between p-6 border-b ${borderColor}`}>
+              {activeDrawer === 'Aura Memory' ? (
+                <>
+                  <div className="flex items-center gap-3">
+                    <img src="/Aura AI logo.png" alt="AURA" className="w-10 h-10 rounded-full" />
+                    <h3 className="font-semibold text-lg">Memory</h3>
+                  </div>
+                  <button onClick={() => setActiveDrawer(null)} className="p-2 hover:bg-gray-700/10 rounded-lg transition-colors">
+                    <X className="w-5 h-5" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-3">
+                    {QUICK_ACTIONS.find(a => a.name === activeDrawer) && (
+                      <div className={`p-2 rounded-xl bg-gradient-to-br ${QUICK_ACTIONS.find(a => a.name === activeDrawer)?.color} bg-opacity-10`}>
+                        {React.createElement(QUICK_ACTIONS.find(a => a.name === activeDrawer)!.icon, { className: 'w-5 h-5 text-indigo-400' })}
+                      </div>
+                    )}
+                    <h3 className="font-semibold text-lg">{activeDrawer}</h3>
+                  </div>
+                  <button onClick={() => setActiveDrawer(null)} className="p-2 hover:bg-gray-700/10 rounded-lg transition-colors">
+                    <X className="w-5 h-5" />
+                  </button>
+                </>
+              )}
+            </div>
+            
+            {/* Content */}
+            <div className="p-6 max-h-[60vh] overflow-y-auto">
+              {isLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+                </div>
+              ) : toolResult ? (
+                <div className="space-y-4">
+                  {toolResult.type === 'weather' && toolResult.data && toolResult.data.main && (
+                    <div className="relative p-6 rounded-2xl border border-transparent overflow-hidden" style={{ minHeight: '300px' }}>
+                      {/* Weather animation background */}
+                      <div className="absolute inset-0 z-0">
+                        {toolResult.data.weather?.[0]?.main === 'Snow' && (
+                          <div className="absolute inset-0">
+                            {[...Array(50)].map((_, i) => (
+                              <div
+                                key={i}
+                                className="absolute w-2 h-2 bg-white rounded-full opacity-80"
+                                style={{
+                                  left: `${Math.random() * 100}%`,
+                                  animation: `snowfall ${3 + Math.random() * 5}s linear infinite`,
+                                  animationDelay: `${Math.random() * 5}s`
+                                }}
+                              />
+                            ))}
+                          </div>
+                        )}
+                        {toolResult.data.weather?.[0]?.main === 'Rain' && (
+                          <div className="absolute inset-0">
+                            {[...Array(100)].map((_, i) => (
+                              <div
+                                key={i}
+                                className="absolute w-0.5 h-8 bg-blue-400/60"
+                                style={{
+                                  left: `${Math.random() * 100}%`,
+                                  animation: `rainfall ${0.5 + Math.random() * 1}s linear infinite`,
+                                  animationDelay: `${Math.random() * 2}s`
+                                }}
+                              />
+                            ))}
+                          </div>
+                        )}
+                        {toolResult.data.weather?.[0]?.main === 'Thunderstorm' && (
+                          <div className="absolute inset-0">
+                            {[...Array(100)].map((_, i) => (
+                              <div
+                                key={i}
+                                className="absolute w-0.5 h-8 bg-blue-400/60"
+                                style={{
+                                  left: `${Math.random() * 100}%`,
+                                  animation: `rainfall ${0.5 + Math.random() * 1}s linear infinite`,
+                                  animationDelay: `${Math.random() * 2}s`
+                                }}
+                              />
+                            ))}
+                            <div className="absolute inset-0 animate-pulse" style={{ animation: 'lightning 4s infinite' }} />
+                          </div>
+                        )}
+                        {toolResult.data.weather?.[0]?.main === 'Clear' && (
+                          <div className="absolute inset-0 bg-gradient-to-b from-blue-400/20 to-yellow-400/20" />
+                        )}
+                        {toolResult.data.weather?.[0]?.main === 'Clouds' && (
+                          <div className="absolute inset-0 bg-gradient-to-b from-gray-400/20 to-gray-600/20" />
+                        )}
+                      </div>
+                      
+                      {/* Weather content */}
+                      <div className="relative z-10 backdrop-blur-sm bg-slate-900/50 p-6 rounded-xl">
+                        <div className="flex items-center justify-between mb-4">
+                          <div>
+                            <h4 className="text-2xl font-bold">{toolResult.data.name || 'Unknown Location'}</h4>
+                            <p className={mutedText}>{toolResult.data.weather?.[0]?.description || 'No description'}</p>
+                          </div>
+                          <div className="text-4xl font-bold">{Math.round(toolResult.data.main.temp)}°C</div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-4 text-sm">
+                          <div><span className={mutedText}>Feels like:</span> {Math.round(toolResult.data.main.feels_like)}°C</div>
+                          <div><span className={mutedText}>Humidity:</span> {toolResult.data.main.humidity}%</div>
+                          <div><span className={mutedText}>Wind:</span> {toolResult.data.wind?.speed || 0} m/s</div>
+                        </div>
+                      </div>
+                      
+                      <style>{`
+                        @keyframes snowfall {
+                          0% { transform: translateY(-10px) translateX(0); }
+                          100% { transform: translateY(400px) translateX(50px); }
+                        }
+                        @keyframes rainfall {
+                          0% { transform: translateY(-10px); opacity: 1; }
+                          100% { transform: translateY(400px); opacity: 0.3; }
+                        }
+                        @keyframes lightning {
+                          0%, 90%, 100% { background: transparent; }
+                          91%, 93%, 95% { background: rgba(255, 255, 255, 0.3); }
+                        }
+                      `}</style>
+                    </div>
+                  )}
+                  
+                  {toolResult.type === 'news' && Array.isArray(toolResult.data) && (
+                    <div className="space-y-3">
+                      {toolResult.data.length > 0 ? toolResult.data.map((article: any, i: number) => (
+                        <div key={i} className={`p-4 rounded-xl border ${borderColor} ${cardBg} hover:border-indigo-500/50 transition-colors cursor-pointer`} onClick={() => article.url && window.open(article.url, '_blank')}>
+                          {article.urlToImage && (
+                            <img 
+                              src={article.urlToImage} 
+                              alt={article.title}
+                              className="w-full h-32 object-cover rounded-lg mb-3"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                            />
+                          )}
+                          <h4 className="font-semibold mb-1">{article.title || 'No title'}</h4>
+                          <p className={`text-sm ${mutedText} line-clamp-2 mb-2`}>{article.description || 'No description available'}</p>
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="text-indigo-400">{article.source?.name || 'Unknown source'}</span>
+                            {article.publishedAt && (
+                              <span className={mutedText}>{new Date(article.publishedAt).toLocaleDateString()}</span>
+                            )}
+                          </div>
+                        </div>
+                      )) : (
+                        <div className={`p-6 rounded-xl border ${borderColor} ${cardBg} text-center ${mutedText}`}>
+                          No news articles available
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {toolResult.type === 'time' && (
+                    <div className={`p-8 rounded-2xl border ${borderColor} ${cardBg} text-center`}>
+                      <div className="text-5xl font-bold mb-2">{toolResult.data.toLocaleTimeString()}</div>
+                      <div className={`text-lg ${mutedText}`}>{toolResult.data.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
+                    </div>
+                  )}
+                  
+                  {toolResult.type === 'founder' && (
+                    <div className={`p-8 rounded-2xl border ${borderColor} ${cardBg} text-center`}>
+                      <User className="w-16 h-16 mx-auto mb-4 text-indigo-400" />
+                      <h4 className="text-2xl font-bold mb-2">{toolResult.data.name}</h4>
+                      <p className={mutedText}>{toolResult.data.role}</p>
+                    </div>
+                  )}
+                  
+                  {toolResult.type === 'background' && (
+                    <div className={`p-6 rounded-2xl border ${borderColor} ${cardBg}`}>
+                      <img 
+                        src={toolResult.data.urls?.regular || toolResult.data.urls?.small} 
+                        alt={toolResult.data.alt_description || 'Background image'}
+                        className="w-full h-64 object-cover rounded-xl mb-4"
+                      />
+                      <div className="text-center">
+                        <p className="font-semibold mb-1">{toolResult.data.alt_description || 'Beautiful background'}</p>
+                        <p className={`text-sm ${mutedText}`}>Photo by {toolResult.data.user?.name || 'Unknown'}</p>
+                        <button 
+                          onClick={() => window.open(toolResult.data.links?.html, '_blank')}
+                          className="mt-3 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg text-sm hover:from-indigo-700 hover:to-purple-700 transition-all"
+                        >
+                          View on Unsplash
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {toolResult.type === 'tasks' && (
+                    <div className="space-y-2">
+                      {toolResult.data.map((task: string, i: number) => (
+                        <div key={i} className={`p-3 rounded-xl border ${borderColor} ${cardBg} flex items-center gap-3`}>
+                          <div className="w-5 h-5 rounded border-2 border-indigo-500"></div>
+                          <span>{task}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {(toolResult.type === 'text' || toolResult.type === 'code') && (
+                    <div className={`p-6 rounded-2xl border ${borderColor} ${cardBg} ${toolResult.type === 'code' ? 'font-mono text-sm' : ''}`}>
+                      <pre className="whitespace-pre-wrap">{toolResult.data}</pre>
+                    </div>
+                  )}
+                  
+                  {toolResult.type === 'placeholder' && (
+                    <div className={`p-8 rounded-2xl border ${borderColor} ${cardBg} text-center ${mutedText}`}>
+                      {toolResult.data}
+                    </div>
+                  )}
+                  
+                  {toolResult.type === 'error' && (
+                    <div className="p-6 rounded-2xl border border-red-500/50 bg-red-500/10 text-red-400 text-center">
+                      {toolResult.data}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className={`p-8 rounded-2xl border ${borderColor} ${cardBg} text-center ${mutedText}`}>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mx-auto"></div>
+                </div>
+              )}
+            </div>
+            
+            {/* Input Area */}
+            {activeDrawer === 'Aura Memory' ? (
+              <div className="p-6">
+                <div className="text-center space-y-6">
+                  <div>
+                    <h5 className="text-xl font-semibold mb-2">Coming Soon: The Evolution of AURA</h5>
+                    <p className={`${mutedText} max-w-2xl mx-auto`}>AURA Memory is currently in development. We are building a more intuitive experience where AURA doesn't just process commands, but remembers your journey to assist you with true intelligence.</p>
+                  </div>
+                  
+                  <div className="space-y-4 text-left max-w-2xl mx-auto pt-4">
+                    <h5 className="text-xl font-semibold text-center mb-6">What's on the Horizon</h5>
+                    
+                    <div className="flex items-start gap-4">
+                      <div className="w-3 h-3 rounded-full bg-gradient-to-r from-purple-400 to-indigo-400 mt-1.5 flex-shrink-0"></div>
+                      <div>
+                        <p className="font-semibold text-lg mb-1">Tailored Intelligence</p>
+                        <p className="text-sm text-gray-400">AURA will learn your unique preferences over time, delivering hyper-personalized responses that align with your specific needs and style.</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-start gap-4">
+                      <div className="w-3 h-3 rounded-full bg-gradient-to-r from-purple-400 to-indigo-400 mt-1.5 flex-shrink-0"></div>
+                      <div>
+                        <p className="font-semibold text-lg mb-1">Persistent Context</p>
+                        <p className="text-sm text-gray-400">Seamlessly reference past interactions. AURA will maintain a long-term conversation history, allowing you to pick up exactly where you left off.</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-start gap-4">
+                      <div className="w-3 h-3 rounded-full bg-gradient-to-r from-purple-400 to-indigo-400 mt-1.5 flex-shrink-0"></div>
+                      <div>
+                        <p className="font-semibold text-lg mb-1">Proactive Insights</p>
+                        <p className="text-sm text-gray-400">Experience a smarter assistant that anticipates your needs with proactive suggestions based on your evolving usage patterns.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : !['Weather', 'News', 'Time', 'The Founder'].includes(activeDrawer) && (
+              <div className={`p-4 border-t ${borderColor}`}>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={toolInput}
+                    onChange={(e) => setToolInput(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleToolSubmit()}
+                    placeholder={`Enter ${activeDrawer.toLowerCase()} input...`}
+                    className={`flex-1 px-4 py-3 rounded-xl border ${borderColor} ${cardBg} outline-none focus:border-indigo-500 transition-colors`}
+                  />
+                  <button
+                    onClick={handleToolSubmit}
+                    disabled={isLoading}
+                    className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all disabled:opacity-50 font-medium"
+                  >
+                    Run
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {isSettingsOpen && (
         window.__TAURI__ ? 
@@ -509,8 +1166,58 @@ const App: React.FC = () => {
           <Settings onClose={() => setIsSettingsOpen(false)} />
       )}
       
-      {isTerminalChatOpen && <TerminalChat onClose={() => setIsTerminalChatOpen(false)} />}
-    </div>
+      {showCodeAnalyzer && (
+        <CodeAnalyzerDrawer onClose={() => setShowCodeAnalyzer(false)} />
+      )}
+      
+      {showNews && (
+        <AuraNewsDrawer onClose={() => setShowNews(false)} />
+      )}
+      
+      {showSketchpad && (
+        <AuraSketchpadDrawer onClose={() => setShowSketchpad(false)} />
+      )}
+      
+      {showMusic && !musicMinimized && (
+        <AuraMusicPlayer 
+          onClose={() => setShowMusic(false)} 
+          onMinimize={() => setMusicMinimized(true)}
+        />
+      )}
+      
+      {/* Minimized Music Player */}
+      {showMusic && musicMinimized && (
+        <div className="fixed bottom-6 right-6 z-40">
+          <button
+            onClick={() => setMusicMinimized(false)}
+            className="p-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-full shadow-2xl shadow-green-500/50 hover:scale-110 transition-transform"
+          >
+            <Volume2 className="w-6 h-6" />
+          </button>
+        </div>
+      )}
+      
+      {showSketchpad && (
+        <AuraSketchpadDrawer onClose={() => setShowSketchpad(false)} />
+      )}
+      
+      {showNotepad && (
+        <AuraNotepadDrawer onClose={() => setShowNotepad(false)} />
+      )}
+      
+      {showGames && (
+        <AuraGamesDrawer onClose={() => setShowGames(false)} />
+      )}
+      
+      {showFounder && (
+        <FounderProfile onClose={() => setShowFounder(false)} />
+      )}
+      
+      {showRoutePlanner && (
+        <AuraRoutePlanner onClose={() => setShowRoutePlanner(false)} />
+      )}
+      </div>
+    </AuraV3Wrapper>
   );
 };
 

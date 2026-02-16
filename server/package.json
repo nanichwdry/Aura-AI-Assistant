@@ -3,7 +3,10 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "setup": "node setup.js"
+    "setup": "node setup.js",
+    "migrate": "node migrations/001_harden_personalization.js && node migrations/002_users_devices.js",
+    "test": "node tests/personalization.test.js && node tests/production_blockers.test.js",
+    "cleanup": "node cleanup.js"
   },
   "dependencies": {
     "better-sqlite3": "^9.2.2",
@@ -12,6 +15,8 @@
     "express": "^4.18.2",
     "googleapis": "^128.0.0",
     "node-fetch": "^3.3.2",
+    "openai": "^4.104.0",
+    "rss-parser": "^3.13.0",
     "ws": "^8.19.0"
   }
 }

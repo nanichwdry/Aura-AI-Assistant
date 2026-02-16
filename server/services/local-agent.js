@@ -80,6 +80,7 @@ const APPS = {
 
 // 4) Safe URLs (only these IDs can be opened)
 const URLS = {
+  google: "https://www.google.com",
   gmail: "https://mail.google.com/mail/u/0/#inbox",
   calendar: "https://calendar.google.com/calendar/u/0/r",
   linkedin: "https://www.linkedin.com/feed/",
@@ -284,6 +285,21 @@ app.post("/tool/run", async (req, res) => {
         const url = validateUrl(args?.url);
         openWithShellStart(url);
         result = "URL opened";
+        break;
+      }
+
+      case "open_website": {
+        let url = String(args?.url || "").trim();
+        if (!url) throw new Error("Missing URL");
+        
+        // Auto-add https:// if no protocol
+        if (!/^https?:\/\//i.test(url)) {
+          url = "https://" + url;
+        }
+        
+        validateUrl(url);
+        openWithShellStart(url);
+        result = `Opened website: ${url}`;
         break;
       }
 

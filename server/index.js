@@ -2,18 +2,27 @@ import 'dotenv/config';
 import express from 'express';
 import Database from 'better-sqlite3';
 import cors from 'cors';
+import OpenAI from 'openai';
 import * as gmail from './integrations/gmail.js';
 import * as linkedin from './integrations/linkedin.js';
 import * as system from './integrations/system.js';
 import { authMiddleware } from './middleware/auth.js';
 import { setupPairingRoutes } from './routes/pairing.js';
 import { setupPcControlRoutes } from './routes/pc-control.js';
+import codeRoutes from './routes/code.js';
+import sketchRoutes from './routes/sketch.js';
+import newsRoutes from './routes/news.js';
+import musicRoutes from './routes/music.js';
+import personalizationRoutes from './routes/personalization.js';
 import { runAuraCommand } from './aura/executor.js';
 
 const AURA_EXECUTOR_ENABLED = process.env.AURA_EXECUTOR === 'true';
 
 const AGENT_URL = 'http://127.0.0.1:8787/tool/run';
 const AGENT_TOKEN = process.env.CHOTU_AGENT_TOKEN;
+
+// Initialize OpenAI
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const app = express();
 app.use(cors({
@@ -56,10 +65,34 @@ db.exec(`
     used INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+  CREATE TABLE IF NOT EXISTS user_profiles (
+    user_id TEXT PRIMARY KEY,
+    home_location TEXT,
+    preferred_airports TEXT,
+    budget_range TEXT,
+    favorite_brands TEXT,
+    frequent_cities TEXT,
+    tone_preference TEXT DEFAULT 'professional',
+    notification_prefs TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS user_actions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    action_type TEXT NOT NULL,
+    action_data TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 setupPairingRoutes(app, db);
 setupPcControlRoutes(app);
+app.use('/api/code', codeRoutes);
+app.use('/api/sketch', sketchRoutes);
+app.use('/api/news', newsRoutes);
+app.use('/api/music', musicRoutes);
+app.use('/api/personalization', personalizationRoutes);
 
 // Simple web interface for pairing
 app.get('/', (req, res) => {
@@ -84,6 +117,12 @@ app.get('/', (req, res) => {
     </body>
     </html>
   `);
+});
+
+// Add logging middleware for all API requests
+app.use('/api', (req, res, next) => {
+  console.log(`[API] ${req.method} ${req.path} - Status: ${res.statusCode}`);
+  next();
 });
 
 app.use(authMiddleware);
@@ -145,17 +184,525 @@ app.post('/api/tools/system', async (req, res) => {
   res.json(result);
 });
 
-// Chat endpoint - PC control now handled by n8n workflow
+// Unified tool router endpoint
+app.post('/api/tools/run', async (req, res) => {
+  console.log(`[API] POST /api/tools/run - Tool: ${req.body.tool}`);
+  
+  try {
+    const { tool, input = {} } = req.body;
+    
+    if (!tool) {
+      console.log(`[API] Error: Missing tool parameter`);
+      return res.status(400).json({ success: false, error: 'Tool parameter is required' });
+    }
+    
+    let result;
+    
+    switch (tool) {
+      case 'weather':
+        try {
+          const city = input.city || 'Frederick';
+          const weatherResponse = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${process.env.OPENWEATHER_API_KEY}&units=metric`);
+          result = await weatherResponse.json();
+        } catch (error) {
+          result = {
+            name: 'Frederick',
+            main: { temp: 0, feels_like: 0, humidity: 0 },
+            weather: [{ description: 'Weather service unavailable' }],
+            wind: { speed: 0 }
+          };
+        }
+        break;
+        
+      case 'news':
+        try {
+          const category = input.category || 'general';
+          const country = input.country || 'us';
+          const query = input.query;
+          
+          let newsUrl;
+          if (query) {
+            newsUrl = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&sortBy=publishedAt&apiKey=${process.env.NEWS_API_KEY}`;
+          } else {
+            newsUrl = `https://newsapi.org/v2/top-headlines?country=${country}&category=${category}&apiKey=${process.env.NEWS_API_KEY}`;
+          }
+          
+          const newsResponse = await fetch(newsUrl);
+          if (newsResponse.ok) {
+            const newsData = await newsResponse.json();
+            result = newsData.articles.slice(0, 10).map(article => ({
+              title: article.title,
+              description: article.description,
+              source: article.source,
+              url: article.url,
+              publishedAt: article.publishedAt,
+              urlToImage: article.urlToImage
+            }));
+          } else {
+            result = [
+              {
+                title: 'News Service Unavailable',
+                description: 'Unable to fetch latest news. Please check your API configuration.',
+                source: { name: 'System' },
+                url: '#'
+              }
+            ];
+          }
+        } catch (error) {
+          result = [
+            {
+              title: 'News Service Error',
+              description: 'Failed to connect to news service.',
+              source: { name: 'System' },
+              url: '#'
+            }
+          ];
+        }
+        break;
+        
+      case 'wikipedia':
+        if (!input.query) {
+          return res.status(400).json({ success: false, error: 'Query parameter required for Wikipedia' });
+        }
+        try {
+          const wikiResponse = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(input.query)}`);
+          if (wikiResponse.ok) {
+            const wikiData = await wikiResponse.json();
+            result = `${wikiData.title}\n\n${wikiData.extract}\n\nRead more: ${wikiData.content_urls?.desktop?.page || ''}`;
+          } else {
+            result = `No Wikipedia article found for "${input.query}"`;
+          }
+        } catch (error) {
+          result = `Wikipedia search failed for "${input.query}"`;
+        }
+        break;
+        
+      case 'music':
+        result = 'Music Player\n\n🎵 Now Playing: None\n🎶 Playlist: Empty\n⏯️ Controls: Play | Pause | Next | Previous';
+        break;
+        
+      case 'games':
+        try {
+          const apiKey = '5ab37b5ba20e4739a66f7eb7c05da175';
+          const { search, genre } = input || {};
+          
+          let url = `https://api.rawg.io/api/games?key=${apiKey}&page_size=12`;
+          
+          if (search && search.trim()) {
+            url += `&search=${encodeURIComponent(search.trim())}`;
+          } else {
+            url += `&ordering=-rating`; // Only add ordering if no search
+          }
+          
+          if (genre && genre !== 'all') {
+            url += `&genres=${genre}`;
+          }
+          
+          console.log('Games API URL:', url);
+          const gamesResponse = await fetch(url);
+          console.log('Games API Status:', gamesResponse.status);
+          
+          if (gamesResponse.ok) {
+            const gamesData = await gamesResponse.json();
+            console.log('Games API Response:', gamesData);
+            
+            result = gamesData.results?.map(game => ({
+              id: game.id,
+              name: game.name,
+              rating: game.rating || 0,
+              released: game.released,
+              background_image: game.background_image,
+              genres: game.genres?.map(g => g.name).join(', ') || 'Unknown',
+              platforms: game.platforms?.map(p => p.platform.name).slice(0, 3).join(', ') || 'Multiple',
+              metacritic: game.metacritic
+            })) || [];
+          } else {
+            const errorText = await gamesResponse.text();
+            console.error('Games API Error:', gamesResponse.status, errorText);
+            result = [];
+          }
+        } catch (error) {
+          console.error('Games API Exception:', error);
+          result = [];
+        }
+        break;
+        
+      case 'themes':
+        result = 'Theme Manager\n\n🎨 Available Themes:\n• Dark Mode (Current)\n• Light Mode\n• Blue Theme\n• Purple Theme\n• Custom Theme\n\nTheme applied successfully!';
+        break;
+        
+      case 'sketchpad':
+        const { action: sketchAction, sketch, prompt: sketchPrompt, id: sketchId } = input;
+        
+        if (sketchAction === 'save' && sketch) {
+          // Save sketch to database
+          try {
+            db.prepare(`
+              INSERT OR REPLACE INTO sketches (id, title, dataUrl, created, updated) 
+              VALUES (?, ?, ?, ?, ?)
+            `).run(sketch.id, sketch.title, sketch.dataUrl, sketch.created, sketch.updated);
+            result = { success: true, message: 'Sketch saved successfully' };
+          } catch (error) {
+            result = { success: false, error: 'Failed to save sketch' };
+          }
+        } else if (sketchAction === 'list') {
+          // Get all sketches
+          try {
+            const sketches = db.prepare('SELECT * FROM sketches ORDER BY updated DESC').all();
+            result = sketches;
+          } catch (error) {
+            // Create sketches table if it doesn't exist
+            db.exec(`
+              CREATE TABLE IF NOT EXISTS sketches (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                dataUrl TEXT NOT NULL,
+                created TEXT NOT NULL,
+                updated TEXT NOT NULL
+              )
+            `);
+            result = [];
+          }
+        } else if (sketchAction === 'delete' && sketchId) {
+          // Delete sketch
+          try {
+            db.prepare('DELETE FROM sketches WHERE id = ?').run(sketchId);
+            result = { success: true, message: 'Sketch deleted successfully' };
+          } catch (error) {
+            result = { success: false, error: 'Failed to delete sketch' };
+          }
+        } else if (sketchAction === 'ai_generate' && sketchPrompt) {
+          // AI Image Generation (placeholder - would need DALL-E or similar)
+          try {
+            // For now, return a placeholder response
+            // In production, you'd integrate with DALL-E, Midjourney, or Stable Diffusion
+            result = 'data:image/svg+xml;base64,' + btoa(`
+              <svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
+                <rect width="800" height="600" fill="#1e293b"/>
+                <text x="400" y="280" text-anchor="middle" fill="#64748b" font-family="Arial" font-size="24">
+                  AI Image Generation
+                </text>
+                <text x="400" y="320" text-anchor="middle" fill="#64748b" font-family="Arial" font-size="16">
+                  Prompt: ${sketchPrompt}
+                </text>
+                <text x="400" y="360" text-anchor="middle" fill="#64748b" font-family="Arial" font-size="14">
+                  (Placeholder - integrate with DALL-E API)
+                </text>
+              </svg>
+            `);
+          } catch (error) {
+            result = 'AI image generation service unavailable';
+          }
+        } else {
+          result = 'AI Sketchpad ready. Draw, create, and generate with AI assistance.';
+        }
+        break;
+        
+      case 'task_manager':
+        if (input.text) {
+          const tasks = input.text.split('\n').filter(t => t.trim());
+          result = tasks;
+        } else {
+          result = ['Sample Task 1', 'Sample Task 2', 'Sample Task 3'];
+        }
+        break;
+        
+      case 'notepad':
+        const { action: noteAction, note, text: noteText, id: noteId } = input;
+        
+        if (noteAction === 'save' && note) {
+          // Save note to database
+          try {
+            db.prepare(`
+              INSERT OR REPLACE INTO notes (id, title, content, created, updated) 
+              VALUES (?, ?, ?, ?, ?)
+            `).run(note.id, note.title, note.content, note.created, note.updated);
+            result = { success: true, message: 'Note saved successfully' };
+          } catch (error) {
+            result = { success: false, error: 'Failed to save note' };
+          }
+        } else if (noteAction === 'list') {
+          // Get all notes
+          try {
+            const notes = db.prepare('SELECT * FROM notes ORDER BY updated DESC').all();
+            result = notes;
+          } catch (error) {
+            // Create notes table if it doesn't exist
+            db.exec(`
+              CREATE TABLE IF NOT EXISTS notes (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created TEXT NOT NULL,
+                updated TEXT NOT NULL
+              )
+            `);
+            result = [];
+          }
+        } else if (noteAction === 'delete' && noteId) {
+          // Delete note
+          try {
+            db.prepare('DELETE FROM notes WHERE id = ?').run(noteId);
+            result = { success: true, message: 'Note deleted successfully' };
+          } catch (error) {
+            result = { success: false, error: 'Failed to delete note' };
+          }
+        } else if (noteAction === 'test_ai') {
+          // Test AI Connection
+          try {
+            console.log('Testing OpenAI connection...');
+            const completion = await openai.chat.completions.create({
+              model: 'gpt-4o-mini',
+              messages: [{
+                role: 'user',
+                content: 'Say "AI connection successful" if you can read this.'
+              }],
+              max_tokens: 50
+            });
+            result = completion.choices[0].message.content.trim();
+            console.log('AI test result:', result);
+          } catch (error) {
+            console.error('AI test failed:', error);
+            result = `AI connection failed: ${error.message}`;
+          }
+        } else if (noteAction === 'grammar_check' && noteText) {
+          // AI Grammar Check
+          try {
+            console.log('Grammar check request:', noteText);
+            const completion = await openai.chat.completions.create({
+              model: 'gpt-4o-mini',
+              messages: [{
+                role: 'system',
+                content: 'You are a grammar and writing assistant. Fix grammar, spelling, punctuation, and improve clarity while maintaining the original meaning and tone. Return only the corrected text without explanations.'
+              }, {
+                role: 'user',
+                content: noteText
+              }],
+              max_tokens: 1000,
+              temperature: 0.3
+            });
+            result = completion.choices[0].message.content.trim();
+            console.log('Grammar check result:', result);
+          } catch (error) {
+            console.error('Grammar check error:', error);
+            result = 'Grammar check service unavailable. Please check your OpenAI API key.';
+          }
+        } else if (noteAction === 'rewrite' && noteText) {
+          // AI Rewrite
+          try {
+            console.log('Rewrite request:', noteText);
+            const completion = await openai.chat.completions.create({
+              model: 'gpt-4o-mini',
+              messages: [{
+                role: 'system',
+                content: 'You are a professional writing assistant. Rewrite the text to be more professional, clear, engaging, and well-structured while maintaining the original meaning. Improve flow and readability. Return only the rewritten text.'
+              }, {
+                role: 'user',
+                content: noteText
+              }],
+              max_tokens: 1000,
+              temperature: 0.7
+            });
+            result = completion.choices[0].message.content.trim();
+            console.log('Rewrite result:', result);
+          } catch (error) {
+            console.error('Rewrite error:', error);
+            result = 'Rewrite service unavailable. Please check your OpenAI API key.';
+          }
+        } else if (noteAction === 'expand' && noteText) {
+          // AI Expand Ideas
+          try {
+            const completion = await openai.chat.completions.create({
+              model: 'gpt-4o-mini',
+              messages: [{
+                role: 'system',
+                content: 'You are a creative writing assistant. Expand on the given text by adding more details, examples, explanations, and depth while maintaining the original tone and direction. Make it more comprehensive and engaging.'
+              }, {
+                role: 'user',
+                content: noteText
+              }],
+              max_tokens: 1500,
+              temperature: 0.8
+            });
+            result = completion.choices[0].message.content.trim();
+          } catch (error) {
+            result = 'Expand service unavailable. Please check your OpenAI API key.';
+          }
+        } else if (noteAction === 'summarize' && noteText) {
+          // AI Summarize
+          try {
+            const completion = await openai.chat.completions.create({
+              model: 'gpt-4o-mini',
+              messages: [{
+                role: 'system',
+                content: 'You are a summarization assistant. Create a concise, well-structured summary of the given text, capturing the key points and main ideas. Keep it clear and informative.'
+              }, {
+                role: 'user',
+                content: noteText
+              }],
+              max_tokens: 500,
+              temperature: 0.3
+            });
+            result = completion.choices[0].message.content.trim();
+          } catch (error) {
+            result = 'Summarize service unavailable. Please check your OpenAI API key.';
+          }
+        } else {
+          result = 'AI Notepad ready. Create, edit, and enhance your notes with AI assistance.';
+        }
+        break;
+        
+      case 'translator':
+        if (!input.text) {
+          return res.status(400).json({ success: false, error: 'Text parameter required for translation' });
+        }
+        try {
+          const translateResponse = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(input.text)}&langpair=en|es`);
+          if (translateResponse.ok) {
+            const translateData = await translateResponse.json();
+            result = `Original: ${input.text}\nTranslated: ${translateData.responseData.translatedText}`;
+          } else {
+            result = `Translation: ${input.text} (Translation service unavailable)`;
+          }
+        } catch (error) {
+          result = `Translation: ${input.text} (Translation failed)`;
+        }
+        break;
+        
+      case 'time':
+        result = new Date().toISOString();
+        break;
+        
+      case 'background':
+        result = {
+          urls: { regular: 'https://picsum.photos/800/600?random=' + Date.now() },
+          alt_description: 'Beautiful random background',
+          user: { name: 'Lorem Picsum' },
+          links: { html: 'https://picsum.photos' }
+        };
+        break;
+        
+      case 'code_editor':
+        if (!input.text) {
+          return res.status(400).json({ success: false, error: 'Code input required' });
+        }
+        try {
+          const completion = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [{
+              role: 'system',
+              content: 'You are Aura Code Editor. Rules: 1) Return production-ready code only. 2) No "assume sanitized" - either render as text safely OR propose concrete sanitization. 3) For React: handle response.ok, error state, abort controller, stale updates. 4) Use best practices. 5) Secure and modern syntax. 6) Minimal changes only.'
+            }, {
+              role: 'user',
+              content: input.text
+            }]
+          });
+          result = completion.choices[0].message.content;
+        } catch (error) {
+          return res.status(500).json({ success: false, error: 'Code generation failed: ' + error.message });
+        }
+        break;
+        
+      case 'code_analyzer':
+        if (!input.code) {
+          return res.status(400).json({ success: false, error: 'Code parameter required for analysis' });
+        }
+        try {
+          const completion = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [{
+              role: 'system',
+              content: 'You are Aura Code Analyzer. Analyze code and return structured feedback:\n\n## Critical Issues\n## Improvements\n## Refactored Snippet (if needed)\n## Summary\n\nBe precise. No fluff. No "assume sanitized" - call out real security issues with concrete fixes.'
+            }, {
+              role: 'user',
+              content: `Code to analyze:\n\`\`\`\n${input.code}\n\`\`\``
+            }]
+          });
+          result = completion.choices[0].message.content;
+        } catch (error) {
+          return res.status(500).json({ success: false, error: 'Code analysis failed: ' + error.message });
+        }
+        break;
+        
+      case 'summarizer':
+        if (!input.text) {
+          return res.status(400).json({ success: false, error: 'Text parameter required for summarization' });
+        }
+        const sentences = input.text.split('.').filter(s => s.trim());
+        const summary = sentences.slice(0, 2).join('.') + (sentences.length > 2 ? '.' : '');
+        result = `Summary:\n\n${summary}\n\nOriginal: ${input.text.length} characters\nSummary: ${summary.length} characters`;
+        break;
+        
+      case 'founder':
+        result = {
+          name: 'NaniChwdry (Mukharji V)',
+          role: 'Creator of Aura AI Assistant',
+          message: 'Hello! I created Aura to be your personal AI assistant.'
+        };
+        break;
+        
+      case 'memory':
+        if (input.action === 'save' && input.key && input.value) {
+          db.prepare('INSERT OR REPLACE INTO memories (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)').run(input.key, input.value);
+          result = { message: `Memory saved: ${input.key} = ${input.value}` };
+        } else if (input.action === 'get') {
+          const rows = db.prepare('SELECT key, value FROM memories').all();
+          result = Object.fromEntries(rows.map(r => [r.key, r.value]));
+        } else {
+          result = { message: 'Aura Memory ready. Use action: "save" or "get"' };
+        }
+        break;
+        
+      case 'route_planner':
+        const { origin, destination, preference = 'fastest' } = input;
+        
+        if (!origin || !destination) {
+          return res.status(400).json({ success: false, error: 'Origin and destination are required' });
+        }
+        
+        try {
+          // Import the upgraded route planner
+          const { planRoute } = await import('./tools/route_planner.js');
+          const routeResult = await planRoute({ origin, destination, preference });
+          
+          if (!routeResult.success) {
+            return res.status(500).json(routeResult);
+          }
+          
+          result = routeResult.data;
+        } catch (error) {
+          console.error('Route planner error:', error);
+          return res.status(500).json({ success: false, error: error.message });
+        }
+        break;
+        
+      default:
+        console.log(`[API] Error: Unknown tool: ${tool}`);
+        return res.status(400).json({ success: false, error: `Unknown tool: ${tool}` });
+    }
+    
+    console.log(`[API] Success: Tool ${tool} executed successfully`);
+    res.json({ success: true, data: result });
+    
+  } catch (error) {
+    console.error(`[API] Error in /api/tools/run:`, error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Chat endpoint - Agent Orchestrated
 app.post('/api/chat', async (req, res) => {
   const text = (req.body?.text || req.body?.message || req.body?.transcript || '').trim();
+  const sessionId = req.body?.sessionId || `session_${Date.now()}`;
+  const userId = req.body?.userId || 'default';
   
   // Aura Executor (feature-flagged)
   if (AURA_EXECUTOR_ENABLED && text) {
     try {
       const result = await runAuraCommand({
         source: 'message',
-        userId: req.body?.userId || 'default',
-        sessionId: req.body?.sessionId || `session_${Date.now()}`,
+        userId,
+        sessionId,
         text,
         attachments: req.body?.attachments || [],
         metadata: req.body?.metadata || {},
@@ -175,11 +722,24 @@ app.post('/api/chat', async (req, res) => {
     }
   }
   
-  // PC control requests now go through n8n workflow
-  // Backend fast path disabled to prevent dual responses
+  // Agent Core Orchestration with Personalization
+  if (text) {
+    try {
+      const { executeAgent } = await import('./agent/agent_core.js');
+      const result = await executeAgent(text, sessionId, userId);
+      return res.json(result);
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        type: 'error',
+        reasoning: error.message,
+        data: null,
+        confidence: 0
+      });
+    }
+  }
   
-  // Normal chat logic (placeholder)
-  res.json({ success: true, message: 'Chat response would go here' });
+  res.json({ success: false, type: 'error', reasoning: 'No message provided', data: null, confidence: 0 });
 });
 
 // Optional: Backend can also route through n8n if needed

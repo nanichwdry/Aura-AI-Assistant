@@ -36,6 +36,14 @@ Aura is a unified task execution system inspired by OpenClaw's gateway pattern. 
 - System commands
 - Process management
 
+🛠️ **AI-Powered Tools**
+- Code Editor & Analyzer (OpenAI GPT-4o-mini)
+- Wikipedia Search (Gemini)
+- Language Translator (Gemini)
+- Text Summarizer (Gemini)
+- Weather & News
+- Task Manager & Notepad
+
 📧 **Email Integration**
 - Gmail support
 - Read and search emails
@@ -80,6 +88,7 @@ cp server/.env.example server/.env
 
 # Edit server/.env and add:
 VITE_GEMINI_API_KEY=your_gemini_api_key
+VITE_OPENAI_API_KEY=your_openai_api_key
 CHOTU_AGENT_TOKEN=your_random_secure_token
 ```
 
@@ -262,7 +271,7 @@ MIT License - see LICENSE file for details
 
 ## Acknowledgments
 
-- Powered by Google Gemini 2.5 Flash
+- Powered by Google Gemini 2.5 Flash & OpenAI GPT-4o-mini
 - Built with React, Vite, Express, Tauri
 - Voice UI inspired by modern AI assistants
 

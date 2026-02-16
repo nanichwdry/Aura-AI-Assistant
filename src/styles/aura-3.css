@@ -1,0 +1,187 @@
+.aura-3-root {
+  --aura-bg: radial-gradient(ellipse at top left, rgba(15,23,42,1) 0%, rgba(8,10,15,1) 60%);
+  --aura-surface: rgba(255,255,255,0.04);
+  --aura-accent-start: #7c3aed;
+  --aura-accent-end: #06b6d4;
+  --aura-muted: rgba(255,255,255,0.6);
+  --aura-border: rgba(255,255,255,0.06);
+  color: #e6eef8;
+  background: var(--aura-bg);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+.aura-3-root::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.15) 0%, transparent 50%);
+  animation: rotate 20s linear infinite;
+}
+
+.aura-3-root::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(circle at 20% 80%, rgba(6, 182, 212, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.aura-topbar {
+  background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border-bottom: 1px solid var(--aura-border);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2), inset 0 -1px 0 rgba(124, 58, 237, 0.1);
+}
+
+.aura-card {
+  background: var(--aura-surface);
+  border: 1px solid var(--aura-border);
+  border-radius: 14px;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.aura-card:hover {
+  border-color: rgba(124, 58, 237, 0.3);
+  box-shadow: 0 12px 48px rgba(124, 58, 237, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+}
+
+.aura-accent {
+  background: linear-gradient(90deg, var(--aura-accent-start), var(--aura-accent-end));
+  color: white;
+}
+
+.aura-muted { color: var(--aura-muted); }
+
+.aura-input {
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+.aura-scrollbar::-webkit-scrollbar { height:10px; width:10px; }
+.aura-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius:10px; }
+
+/* Legacy token compatibility and additional tokens used across components */
+:root {
+  --panel-bg: rgba(255,255,255,0.04);
+  --panel-strong: rgba(255,255,255,0.06);
+  --panel-border: rgba(255,255,255,0.06);
+  --text-primary: #e6eef8;
+  --text-muted: rgba(230,238,248,0.6);
+  --text-soft: rgba(230,238,248,0.4);
+  --aura-core: #22D3EE;
+  --aura-core-strong: #06B6D4;
+  --aura-violet: #8B5CF6;
+  --aura-glow: rgba(34,211,238,0.18);
+  --error: #EF4444;
+  --success: #10B981;
+}
+
+/* Glass surface utilities used by many components */
+.glass-panel {
+  background: var(--panel-bg);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+}
+
+.glass-panel-strong {
+  background: var(--panel-strong);
+  backdrop-filter: blur(18px);
+  border: 1px solid var(--panel-border);
+  border-radius: 18px;
+}
+
+/* Micro animations */
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(34,211,238,0.12); transform: translateY(0); }
+  50% { box-shadow: 0 0 20px 6px rgba(34,211,238,0.06); transform: translateY(-2px); }
+  100% { box-shadow: 0 0 0 0 rgba(34,211,238,0.00); transform: translateY(0); }
+}
+
+.mic-pulse {
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes messageIn {
+  from { opacity: 0; transform: translateY(8px) scale(.995); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.message-in { animation: messageIn 220ms cubic-bezier(.2,.9,.3,1); }
+
+.focus-glow { box-shadow: 0 6px 30px var(--aura-glow); }
+
+/* Drawer/backdrop and entrance animations */
+.drawer-backdrop { background: rgba(0,0,0,0.55); backdrop-filter: blur(10px); }
+@keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes slideInBottom { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.drawer-enter-right { animation: slideInRight 220ms cubic-bezier(.2,.9,.3,1); }
+.drawer-enter-bottom { animation: slideInBottom 220ms cubic-bezier(.2,.9,.3,1); }
+
+/* scrollbar utility used across the app */
+.custom-scrollbar::-webkit-scrollbar { width:6px; height:6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: var(--aura-core); opacity: 0.28; border-radius:10px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { opacity: 0.5; }
+
+/* Particle effects */
+@keyframes particle-float {
+  0% { transform: translateY(0) translateX(0); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(-100vh) translateX(100px); opacity: 0; }
+}
+
+.particle {
+  position: fixed;
+  width: 3px;
+  height: 3px;
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.8), transparent);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Glow effects */
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.3; filter: blur(20px); }
+  50% { opacity: 0.6; filter: blur(30px); }
+}
+
+.glow-orb {
+  position: fixed;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  animation: glow-pulse 4s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+
+.animate-breathe {
+  animation: breathe 4s ease-in-out infinite;
+}
+

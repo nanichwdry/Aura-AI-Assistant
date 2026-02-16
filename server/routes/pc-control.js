@@ -2,7 +2,7 @@ const AGENT_URL = 'http://127.0.0.1:8787/tool/run';
 const AGENT_TOKEN = process.env.CHOTU_AGENT_TOKEN;
 
 const SAFE_TOOLS = [
-  'open_app', 'open_url', 'open_url_id', 'open_project',
+  'open_app', 'open_url', 'open_url_id', 'open_website', 'open_project',
   'search_files', 'reveal_file', 'create_file', 'create_folder',
   'get_system_info', 'list_processes'
 ];
@@ -62,25 +62,57 @@ export function setupPcControlRoutes(app) {
     const { text, confirm } = req.body;
     const normalized = String(text || '').toLowerCase().trim();
 
+    // Check predefined mappings first
     const match = NL_MAP[normalized];
-    if (!match) {
-      return res.json({ ok: false, error: 'No PC action matched' });
+    if (match) {
+      try {
+        const headers = { 'Content-Type': 'application/json', 'x-agent-token': AGENT_TOKEN };
+        if (confirm) headers['x-confirm'] = 'YES';
+
+        const response = await fetch(AGENT_URL, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(match)
+        });
+
+        const data = await response.json();
+        return res.json(data);
+      } catch (error) {
+        return res.status(500).json({ ok: false, error: error.message });
+      }
     }
 
-    try {
-      const headers = { 'Content-Type': 'application/json', 'x-agent-token': AGENT_TOKEN };
-      if (confirm) headers['x-confirm'] = 'YES';
+    // Check for website opening patterns
+    const websitePatterns = [
+      /^open\s+(.+\.\w+)$/,
+      /^go to\s+(.+\.\w+)$/,
+      /^visit\s+(.+\.\w+)$/,
+      /^browse\s+(.+\.\w+)$/
+    ];
 
-      const response = await fetch(AGENT_URL, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(match)
-      });
+    for (const pattern of websitePatterns) {
+      const match = normalized.match(pattern);
+      if (match) {
+        try {
+          const headers = { 'Content-Type': 'application/json', 'x-agent-token': AGENT_TOKEN };
+          
+          const response = await fetch(AGENT_URL, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              tool_name: 'open_website',
+              args: { url: match[1] }
+            })
+          });
 
-      const data = await response.json();
-      return res.json(data);
-    } catch (error) {
-      return res.status(500).json({ ok: false, error: error.message });
+          const data = await response.json();
+          return res.json(data);
+        } catch (error) {
+          return res.status(500).json({ ok: false, error: error.message });
+        }
+      }
     }
+
+    return res.json({ ok: false, error: 'No PC action matched' });
   });
 }
