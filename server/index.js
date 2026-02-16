@@ -768,3 +768,5 @@ const linkedinToken = db.prepare('SELECT value FROM memories WHERE key = ?').get
 if (linkedinToken) linkedin.setLinkedInToken(linkedinToken.value);
 
 app.listen(3001, () => console.log('Server running on http://localhost:3001'));
+
+export default app;
