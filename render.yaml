@@ -2,7 +2,7 @@ services:
   - type: web
     name: aura-ai-assistant
     env: node
-    buildCommand: npm install && cd server && npm install && cd .. && npm run build
+    buildCommand: npm install && npm run build && cd server && npm install
     startCommand: cd server && npm start
     envVars:
       - key: NODE_VERSION
