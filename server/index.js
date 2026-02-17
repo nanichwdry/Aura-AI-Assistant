@@ -26,7 +26,13 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const app = express();
 app.use(cors({
-  origin: ['http://localhost:5173', 'tauri://localhost', 'http://tauri.localhost'],
+  origin: [
+    'http://localhost:5173',
+    'tauri://localhost',
+    'http://tauri.localhost',
+    'https://aura-ai-assistant.vercel.app',
+    /\.vercel\.app$/
+  ],
   methods: ['GET', 'POST', 'OPTIONS'],
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -93,6 +99,11 @@ app.use('/api/sketch', sketchRoutes);
 app.use('/api/news', newsRoutes);
 app.use('/api/music', musicRoutes);
 app.use('/api/personalization', personalizationRoutes);
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 // Simple web interface for pairing
 app.get('/', (req, res) => {
@@ -767,6 +778,7 @@ if (gmailTokens) gmail.initGmail(JSON.parse(gmailTokens.value));
 const linkedinToken = db.prepare('SELECT value FROM memories WHERE key = ?').get('linkedin_token');
 if (linkedinToken) linkedin.setLinkedInToken(linkedinToken.value);
 
-app.listen(3001, () => console.log('Server running on http://localhost:3001'));
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
 
 export default app;
