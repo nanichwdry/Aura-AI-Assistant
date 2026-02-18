@@ -3,7 +3,7 @@
   "name": "Aura Reader",
   "version": "1.0.0",
   "description": "AI-powered webpage explainer using Aura Assistant",
-  "permissions": ["storage", "activeTab"],
+  "permissions": ["storage", "activeTab", "nativeMessaging"],
   "background": {
     "service_worker": "background.js"
   },

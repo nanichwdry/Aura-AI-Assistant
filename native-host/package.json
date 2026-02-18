@@ -1,0 +1,9 @@
+{
+  "name": "aura-native-host",
+  "version": "1.0.0",
+  "main": "host.js",
+  "type": "module",
+  "dependencies": {
+    "openai": "^4.77.0"
+  }
+}

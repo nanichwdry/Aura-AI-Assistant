@@ -172,9 +172,9 @@ async function sendToAura(input: any) {
         throw new Error(`Server error: ${text}`);
       }
       
-      const result = await response.json();
+      const result = await response.json() as { success: boolean; data?: { answer: string }; error?: string };
       
-      if (result.success) {
+      if (result.success && result.data) {
         const answer = result.data.answer;
         outputChannel.clear();
         outputChannel.appendLine('=== AURA RESPONSE ===\n');

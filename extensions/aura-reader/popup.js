@@ -6,15 +6,28 @@ async function loadBundle() {
   const data = await chrome.storage.local.get(['lastBundle', 'backendUrl']);
   currentBundle = data.lastBundle || { url: '', title: '', selectionText: '', contextText: '' };
   
-  document.getElementById('pageInfo').textContent = `${currentBundle.title}\n${currentBundle.url}`;
-  document.getElementById('selectionText').textContent = currentBundle.selectionText || '(no selection)';
+  document.getElementById('pageInfo').textContent = `${currentBundle.title || 'No page'}\n${currentBundle.url || 'No URL'}`;
+  document.getElementById('selectionText').textContent = currentBundle.selectionText || '(no selection - select text and press Alt+Shift+E)';
   document.getElementById('contextText').textContent = currentBundle.contextText || '(no context)';
   
   if (!currentBundle.selectionText && !currentBundle.contextText) {
-    document.getElementById('error').textContent = 'No text selected. Please select text on the page and try again.';
+    document.getElementById('error').textContent = '⚠️ No text captured. Please:\n1. Select text on the page\n2. Press Alt+Shift+E (not the icon)';
     document.getElementById('error').classList.remove('hidden');
+    document.getElementById('explainBtn').disabled = true;
   }
 }
+
+document.getElementById('captureBtn').addEventListener('click', async () => {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  chrome.tabs.sendMessage(tab.id, { action: 'captureSelection' }, (response) => {
+    if (chrome.runtime.lastError) {
+      document.getElementById('error').textContent = 'Error: Content script not loaded. Refresh the page and try again.';
+      document.getElementById('error').classList.remove('hidden');
+    } else {
+      setTimeout(() => loadBundle(), 100);
+    }
+  });
+});
 
 document.getElementById('explainBtn').addEventListener('click', async () => {
   const question = document.getElementById('question').value.trim() || 'Explain this simply';
@@ -28,43 +41,24 @@ document.getElementById('explainBtn').addEventListener('click', async () => {
   copyBtn.classList.add('hidden');
   
   explainBtn.disabled = true;
-  explainBtn.textContent = '⏳ Thinking...';
+  explainBtn.textContent = '🎤 Speaking...';
   
   try {
-    const data = await chrome.storage.local.get('backendUrl');
-    const backendUrl = data.backendUrl || DEFAULT_BACKEND;
-    
-    const response = await fetch(`${backendUrl}/api/tools/run`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tool: 'page_explain',
-        input: {
-          question,
-          url: currentBundle.url,
-          title: currentBundle.title,
-          selectionText: currentBundle.selectionText,
-          contextText: currentBundle.contextText
-        }
-      })
+    const response = await chrome.runtime.sendMessage({
+      action: 'explainWithVoice',
+      question,
+      context: `Title: ${currentBundle.title}\nURL: ${currentBundle.url}\nSelection: ${currentBundle.selectionText}\nContext: ${currentBundle.contextText}`
     });
     
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Server error: ${text}`);
-    }
-    
-    const result = await response.json();
-    
-    if (result.success) {
-      answerDiv.textContent = result.data.answer;
+    if (response.success) {
+      answerDiv.textContent = response.answer + ' 🔊';
       answerDiv.classList.remove('hidden');
       copyBtn.classList.remove('hidden');
     } else {
-      throw new Error(result.error || 'Unknown error');
+      throw new Error(response.error || 'Native host not installed');
     }
   } catch (error) {
-    errorDiv.textContent = `Error: ${error.message}`;
+    errorDiv.textContent = `Error: ${error.message}\n\nMake sure native host is installed (run install.bat)`;
     errorDiv.classList.remove('hidden');
   } finally {
     explainBtn.disabled = false;

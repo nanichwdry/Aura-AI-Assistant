@@ -1,0 +1,9 @@
+{
+  "name": "com.aura.native_host",
+  "description": "Aura Native Host for voice responses",
+  "path": "c:\\Projects\\Aura-AI-Assistant\\native-host\\host.bat",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://amhnmmdjkhljhefncnhdfnoddcdalaoa/"
+  ]
+}
