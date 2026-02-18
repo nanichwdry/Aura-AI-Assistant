@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Wifi, WifiOff, Smartphone, X } from 'lucide-react';
+import { API_BASE_URL } from '../config/api';
 
 const DesktopSettings: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const [serverUrl, setServerUrl] = useState('http://localhost:3001');
+  const [serverUrl, setServerUrl] = useState(API_BASE_URL);
   const [pairCode, setPairCode] = useState('');
   const [deviceName, setDeviceName] = useState('Desktop');
   const [isConnected, setIsConnected] = useState(false);
@@ -84,7 +85,7 @@ const DesktopSettings: React.FC<{ onClose: () => void }> = ({ onClose }) => {
               value={serverUrl}
               onChange={(e) => setServerUrl(e.target.value)}
               className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm"
-              placeholder="http://localhost:3001"
+              placeholder={API_BASE_URL}
             />
           </div>
 
