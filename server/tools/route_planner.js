@@ -1,6 +1,6 @@
 function safeDepartureTimeISO(inputDepartureTime) {
   const now = Date.now();
-  const minFuture = new Date(now + 300_000); // now + 5 minutes for maximum safety
+  const minFuture = new Date(now + 600_000); // now + 10 minutes for maximum safety
 
   // Default: future timestamp
   if (!inputDepartureTime || inputDepartureTime === "now") {
