@@ -1,0 +1,56 @@
+{
+  "name": "aura-vscode",
+  "displayName": "Aura Assistant",
+  "description": "AI-powered code helper using Aura Assistant",
+  "version": "1.0.0",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "aura.explainSelection",
+        "title": "Aura: Explain Selection"
+      },
+      {
+        "command": "aura.fixFromTerminal",
+        "title": "Aura: Fix From Terminal"
+      },
+      {
+        "command": "aura.explainDiagnostics",
+        "title": "Aura: Explain Diagnostics"
+      }
+    ],
+    "configuration": {
+      "title": "Aura Assistant",
+      "properties": {
+        "aura.backendUrl": {
+          "type": "string",
+          "default": "https://aura-ai-assistant.onrender.com",
+          "description": "Aura backend API URL"
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "command": "aura.explainSelection",
+        "key": "ctrl+alt+e",
+        "mac": "cmd+alt+e",
+        "when": "editorTextFocus"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.75.0",
+    "typescript": "^5.0.0"
+  }
+}

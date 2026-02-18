@@ -32,8 +32,11 @@ app.use(cors({
     'http://tauri.localhost',
     'https://aura-ai-assistant.vercel.app',
     'https://aura-ai-assistant-frontend.vercel.app',
+    'https://aura-ai-assistant-nine.vercel.app',
     /\.vercel\.app$/,
-    /\.onrender\.com$/
+    /\.onrender\.com$/,
+    /^chrome-extension:\/\//,
+    /^moz-extension:\/\//
   ],
   methods: ['GET', 'POST', 'OPTIONS'],
   credentials: true,
@@ -685,6 +688,34 @@ app.post('/api/tools/run', async (req, res) => {
           result = routeResult.data;
         } catch (error) {
           console.error('Route planner error:', error);
+          return res.status(500).json({ success: false, error: error.message });
+        }
+        break;
+        
+      case 'vscode_help':
+        try {
+          const { vscode_help } = await import('./tools/vscode_help.js');
+          const vscodeResult = await vscode_help(input);
+          if (!vscodeResult.success) {
+            return res.status(400).json(vscodeResult);
+          }
+          result = vscodeResult.data;
+        } catch (error) {
+          console.error('VS Code helper error:', error);
+          return res.status(500).json({ success: false, error: error.message });
+        }
+        break;
+        
+      case 'page_explain':
+        try {
+          const { page_explain } = await import('./tools/page_explain.js');
+          const pageResult = await page_explain(input);
+          if (!pageResult.success) {
+            return res.status(400).json(pageResult);
+          }
+          result = pageResult.data;
+        } catch (error) {
+          console.error('Page explain error:', error);
           return res.status(500).json({ success: false, error: error.message });
         }
         break;

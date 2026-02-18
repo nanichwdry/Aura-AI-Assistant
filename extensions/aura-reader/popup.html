@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Aura Reader</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🌟 Aura Reader</h1>
+    </div>
+    
+    <div class="content">
+      <div class="section">
+        <label>Page</label>
+        <div id="pageInfo" class="info-box"></div>
+      </div>
+      
+      <div class="section">
+        <label>Selected Text</label>
+        <div id="selectionText" class="text-box"></div>
+      </div>
+      
+      <div class="section">
+        <label>Context</label>
+        <div id="contextText" class="text-box collapsed"></div>
+      </div>
+      
+      <div class="section">
+        <label for="question">Your Question</label>
+        <input type="text" id="question" placeholder="Explain this simply" />
+      </div>
+      
+      <button id="explainBtn" class="primary-btn">✨ Explain</button>
+      
+      <div id="answer" class="answer hidden"></div>
+      <div id="error" class="error hidden"></div>
+      
+      <button id="copyBtn" class="secondary-btn hidden">📋 Copy Answer</button>
+    </div>
+    
+    <div class="footer">
+      <a href="#" id="settingsLink">⚙️ Settings</a>
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>

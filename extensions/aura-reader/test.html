@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aura Extension Test Page</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    h1 { color: #667eea; }
+    p { margin: 20px 0; }
+    .highlight { background: #fff3cd; padding: 2px 4px; }
+  </style>
+</head>
+<body>
+  <h1>Test Aura Reader Extension</h1>
+  
+  <h2>Instructions:</h2>
+  <ol>
+    <li>Load the extension in Chrome (chrome://extensions → Load unpacked → select extensions/aura-reader)</li>
+    <li>Select any text below</li>
+    <li>Press <strong>Alt+Shift+E</strong> or click the extension icon</li>
+    <li>Check if the popup shows your selection and context</li>
+  </ol>
+  
+  <h2>Sample Content:</h2>
+  
+  <article>
+    <p>
+      Machine learning is a subset of artificial intelligence that enables computers to learn from data without being explicitly programmed. 
+      It uses algorithms to identify patterns and make decisions based on those patterns.
+    </p>
+    
+    <p>
+      Deep learning is a specialized form of machine learning that uses neural networks with multiple layers. 
+      These networks can process vast amounts of data and extract complex features automatically.
+    </p>
+    
+    <p>
+      Natural language processing (NLP) combines machine learning with linguistics to help computers understand human language. 
+      Applications include chatbots, translation services, and sentiment analysis.
+    </p>
+  </article>
+  
+  <h2>Test Cases:</h2>
+  <ul>
+    <li>Select <span class="highlight">"Machine learning"</span> - should capture the entire first paragraph as context</li>
+    <li>Select <span class="highlight">"neural networks"</span> - should capture the second paragraph</li>
+    <li>Select nothing and open popup - should show warning</li>
+  </ul>
+  
+  <h2>Expected Behavior:</h2>
+  <p>
+    When you select text and trigger the extension, it should:
+  </p>
+  <ol>
+    <li>Capture your selected text (up to 6000 chars)</li>
+    <li>Find the nearest paragraph/div/article container</li>
+    <li>Extract the full text from that container as context</li>
+    <li>Show both in the popup with page title and URL</li>
+    <li>Allow you to ask a question and send to Aura backend</li>
+  </ol>
+  
+  <h2>Troubleshooting:</h2>
+  <p>If it's not working:</p>
+  <ul>
+    <li>Check browser console (F12) for errors</li>
+    <li>Verify extension is loaded and enabled</li>
+    <li>Check if content.js is injected (look in DevTools → Sources)</li>
+    <li>Make sure you added placeholder icons (or extension won't load)</li>
+    <li>Test the backend URL: <code>https://aura-ai-assistant.onrender.com/api/health</code></li>
+  </ul>
+</body>
+</html>
