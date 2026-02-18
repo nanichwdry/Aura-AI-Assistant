@@ -18,7 +18,8 @@ import { AuraNotepadDrawer } from './src/components/AuraNotepadDrawer';
 import { AuraGamesDrawer } from './src/components/AuraGamesDrawer';
 import { AuraRoutePlanner } from './src/components/AuraRoutePlanner';
 import { pcControlNL, pcControlExecute } from './src/services/pcControl';
-import { API_BASE_URL } from './src/config/api';`n
+import { API_BASE_URL } from './src/config/api';
+
 const emailTool: FunctionDeclaration = {
   name: 'manage_emails',
   parameters: {
@@ -97,7 +98,7 @@ const executeToolTool: FunctionDeclaration = {
   }
 };
 
-const SYSTEM_INSTRUCTION = ``You are Aura, the user's elite AI personal assistant. Be snappy, witty, and human-like. Start speaking immediately. Use tools proactively.
+const SYSTEM_INSTRUCTION = `You are Aura, the user's elite AI personal assistant. Be snappy, witty, and human-like. Start speaking immediately. Use tools proactively.
 
 For route/directions requests:
 - Extract origin and destination from user query
@@ -183,7 +184,7 @@ const App: React.FC = () => {
     if (fc.name === 'save_memory') {
       const { key, value } = fc.args;
       try {
-        await fetch('${API_BASE_URL}/api/memory', {
+        await fetch(`${API_BASE_URL}/api/memory`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ key, value })
@@ -208,7 +209,7 @@ const App: React.FC = () => {
     else if (fc.name === 'execute_tool') {
       const { tool, input } = fc.args;
       try {
-        const res = await fetch('${API_BASE_URL}/api/tools/run', {
+        const res = await fetch(`${API_BASE_URL}/api/tools/run`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tool, input: input || {} })
@@ -245,7 +246,7 @@ const App: React.FC = () => {
       }
     }
     else if (fc.name === 'manage_emails') {
-      const res = await fetch('${API_BASE_URL}/api/tools/email', {
+      const res = await fetch(`${API_BASE_URL}/api/tools/email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(fc.args)
@@ -254,7 +255,7 @@ const App: React.FC = () => {
       response.result = data.error || `Found ${data.length} emails`;
     }
     else if (fc.name === 'check_linkedin') {
-      const res = await fetch('${API_BASE_URL}/api/tools/linkedin', {
+      const res = await fetch(`${API_BASE_URL}/api/tools/linkedin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(fc.args)
@@ -283,7 +284,7 @@ const App: React.FC = () => {
       setStatus(AssistantStatus.LISTENING);
       const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY as string });
       
-      const memory = await fetch('${API_BASE_URL}/api/memory')
+      const memory = await fetch(`${API_BASE_URL}/api/memory`)
         .then(r => r.ok ? r.json() : {})
         .catch(e => {
           console.error('Memory fetch failed:', e);
@@ -480,7 +481,7 @@ const App: React.FC = () => {
         throw new Error(`Unknown tool: ${action}`);
       }
       
-      const response = await fetch('${API_BASE_URL}/api/tools/run', {
+      const response = await fetch(`${API_BASE_URL}/api/tools/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -565,7 +566,7 @@ const App: React.FC = () => {
             'Summarizer': 'summarizer'
           };
           
-          const apiResponse = await fetch('${API_BASE_URL}/api/tools/run', {
+          const apiResponse = await fetch(`${API_BASE_URL}/api/tools/run`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
@@ -590,7 +591,7 @@ const App: React.FC = () => {
           break;
           
         case 'Aura Memory':
-          await fetch('${API_BASE_URL}/api/memory', {
+          await fetch(`${API_BASE_URL}/api/memory`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ key: Date.now().toString(), value: toolInput })
@@ -1222,8 +1223,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-
-
-
-
-
