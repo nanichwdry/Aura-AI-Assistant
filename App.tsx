@@ -97,7 +97,7 @@ const executeToolTool: FunctionDeclaration = {
   }
 };
 
-const SYSTEM_INSTRUCTION = `You are Aura, the user's elite AI personal assistant. Be snappy, witty, and human-like. Start speaking immediately. Use tools proactively.
+const SYSTEM_INSTRUCTION = ``You are Aura, the user's elite AI personal assistant. Be snappy, witty, and human-like. Start speaking immediately. Use tools proactively.
 
 For route/directions requests:
 - Extract origin and destination from user query
@@ -1222,5 +1222,8 @@ const App: React.FC = () => {
 };
 
 export default App;
+
+
+
 
 
