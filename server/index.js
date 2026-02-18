@@ -31,7 +31,9 @@ app.use(cors({
     'tauri://localhost',
     'http://tauri.localhost',
     'https://aura-ai-assistant.vercel.app',
-    /\.vercel\.app$/
+    'https://aura-ai-assistant-frontend.vercel.app',
+    /\.vercel\.app$/,
+    /\.onrender\.com$/
   ],
   methods: ['GET', 'POST', 'OPTIONS'],
   credentials: true,
