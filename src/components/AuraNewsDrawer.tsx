@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Newspaper, Globe, Languages, MapPin, Filter, ExternalLink, Calendar } from 'lucide-react';
+import { API_BASE_URL } from '../config/api';
 
 interface Props {
   onClose: () => void;
@@ -81,7 +82,7 @@ export function AuraNewsDrawer({ onClose }: Props) {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('/api/news/fetch', {
+      const response = await fetch(`${API_BASE_URL}/api/news/fetch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

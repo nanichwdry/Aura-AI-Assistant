@@ -12,12 +12,15 @@
     "tauri:build": "tauri build",
     "build:standalone": "node build-standalone.js",
     "server": "cd server && npm start",
-    "local-agent": "cd server/services && node local-agent.js"
+    "local-agent": "cd server/services && node local-agent.js",
+    "test:servers": "node test-servers.js",
+    "start:dev": "start-dev.bat"
   },
   "dependencies": {
     "@google/genai": "^1.38.0",
     "framer-motion": "^12.34.0",
     "lucide-react": "^0.463.0",
+    "node-fetch": "^3.3.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
