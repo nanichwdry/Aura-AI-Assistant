@@ -761,6 +761,25 @@ const App: React.FC = () => {
               </motion.div>
             ) : (
               <>
+                {/* Fixed Aura Logo at top */}
+                <div className="sticky top-0 z-10 flex justify-center py-4 bg-gradient-to-b from-slate-950 to-transparent">
+                  <div className="relative">
+                    <motion.div 
+                      animate={{ 
+                        boxShadow: [
+                          '0 0 15px rgba(124, 58, 237, 0.3)',
+                          '0 0 30px rgba(124, 58, 237, 0.5)',
+                          '0 0 15px rgba(124, 58, 237, 0.3)'
+                        ]
+                      }}
+                      transition={{ duration: 3, repeat: Infinity }}
+                      className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-full blur-xl opacity-40"
+                    />
+                    <div className="relative w-16 h-16">
+                      <AuraAvatar isSpeaking={status === AssistantStatus.SPEAKING} />
+                    </div>
+                  </div>
+                </div>
                 <AnimatePresence>
                   {messages.map((msg) => (
                   <motion.div 
