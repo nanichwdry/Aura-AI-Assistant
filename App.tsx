@@ -666,9 +666,10 @@ const App: React.FC = () => {
 
   return (
     <AuraV3Wrapper>
-      <div className={`relative flex h-screen w-screen overflow-hidden ${bgColor} ${textColor} font-sans`}>
-        {/* Dropping lines background */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+      <div className="fixed inset-0 h-screen w-screen overflow-hidden">
+        {/* Background Layer - Always visible */}
+        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+          <div className={`absolute inset-0 ${bgColor}`} />
           {[...Array(30)].map((_, i) => (
             <div
               key={i}
@@ -690,174 +691,153 @@ const App: React.FC = () => {
             100% { transform: translateY(100vh); opacity: 0; }
           }
         `}</style>
-      {/* Top Bar */}
-      <div className={`fixed top-0 left-0 right-0 h-16 aura-topbar ${cardBg} border-b ${borderColor} flex items-center justify-between px-6 z-50 shadow-lg`}>
-          <div className="flex items-center gap-3">
-          <img src="/Aura AI logo.png" alt="Aura" className="w-8 h-8 rounded-xl" />
-          <span className="font-semibold text-lg bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">Aura</span>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <button onClick={handleToggleSession} className={`p-2.5 rounded-xl transition-all ${status !== AssistantStatus.IDLE ? 'bg-gradient-to-r from-red-600 to-pink-600 text-white shadow-lg shadow-red-500/50' : 'hover:bg-gray-700/10'}`}>
-            {status !== AssistantStatus.IDLE ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-          </button>
-          <button onClick={() => setIsDark(!isDark)} className="p-2.5 rounded-xl hover:bg-gray-700/10 transition-colors">
-            {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-          </button>
-          <button onClick={() => setIsMuted(!isMuted)} className="p-2.5 rounded-xl hover:bg-gray-700/10 transition-colors">
-            {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-          </button>
-          <button onClick={() => setIsSettingsOpen(true)} className="p-2.5 rounded-xl hover:bg-gray-700/10 transition-colors">
-            <SettingsIcon className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
 
-      {/* Main Content */}
-      <div className="flex flex-1 pt-16">
-        {/* Chat Panel */}
-        <div className="flex-1 flex flex-col min-w-0 aura-scrollbar">
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4 aura-scrollbar">
-            {messages.length === 0 ? (
+        {/* Main Shell - Fixed grid layout */}
+        <div className="relative z-10 h-full grid grid-cols-1 lg:grid-cols-[1fr_320px]">
+          {/* Left: Main Content Area */}
+          <main className="h-full overflow-hidden flex flex-col">
+            {/* Top Bar */}
+            <div className={`shrink-0 h-16 ${cardBg} border-b ${borderColor} flex items-center justify-between px-6 shadow-lg`}>
+              <div className="flex items-center gap-3">
+                <img src="/Aura AI logo.png" alt="Aura" className="w-8 h-8 rounded-xl" />
+                <span className="font-semibold text-lg bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">Aura</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={handleToggleSession} className={`p-2.5 rounded-xl transition-all ${status !== AssistantStatus.IDLE ? 'bg-gradient-to-r from-red-600 to-pink-600 text-white shadow-lg shadow-red-500/50' : 'hover:bg-gray-700/10'}`}>
+                  {status !== AssistantStatus.IDLE ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                </button>
+                <button onClick={() => setIsDark(!isDark)} className="p-2.5 rounded-xl hover:bg-gray-700/10 transition-colors">
+                  {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                </button>
+                <button onClick={() => setIsMuted(!isMuted)} className="p-2.5 rounded-xl hover:bg-gray-700/10 transition-colors">
+                  {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                </button>
+                <button onClick={() => setIsSettingsOpen(true)} className="p-2.5 rounded-xl hover:bg-gray-700/10 transition-colors">
+                  <SettingsIcon className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Hero Area - Transitions between full and compact */}
+            <div className={`shrink-0 transition-all duration-500 ${messages.length === 0 ? 'h-64' : 'h-20'} flex items-center justify-center`}>
               <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8 }}
-                className="h-full flex flex-col items-center justify-center"
+                animate={{ 
+                  scale: messages.length === 0 ? 1 : 0.5,
+                  opacity: messages.length === 0 ? 1 : 0.7
+                }}
+                transition={{ duration: 0.5 }}
+                className="relative"
               >
-                <div className="relative mb-6">
-                  <motion.div 
-                    animate={{ 
-                      boxShadow: [
-                        '0 0 20px rgba(124, 58, 237, 0.3)',
-                        '0 0 60px rgba(124, 58, 237, 0.6)',
-                        '0 0 20px rgba(124, 58, 237, 0.3)'
-                      ]
-                    }}
-                    transition={{ duration: 3, repeat: Infinity }}
-                    className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl blur-2xl opacity-50"
-                  />
-                  <div className="relative">
-                    <AuraAvatar isSpeaking={status === AssistantStatus.SPEAKING} />
-                  </div>
+                <motion.div 
+                  animate={{ 
+                    boxShadow: [
+                      '0 0 20px rgba(124, 58, 237, 0.3)',
+                      '0 0 60px rgba(124, 58, 237, 0.6)',
+                      '0 0 20px rgba(124, 58, 237, 0.3)'
+                    ]
+                  }}
+                  transition={{ duration: 3, repeat: Infinity }}
+                  className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl blur-2xl opacity-50"
+                />
+                <div className="relative">
+                  <AuraAvatar isSpeaking={status === AssistantStatus.SPEAKING} />
                 </div>
-                <motion.h2 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.3 }}
-                  className="text-3xl font-bold mb-2 bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent"
-                >
-                  Hi, I'm Aura
-                </motion.h2>
-                <motion.p 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.5 }}
-                  className={`aura-muted ${mutedText}`}
-                >
-                  Your AI-powered personal assistant
-                </motion.p>
               </motion.div>
-            ) : (
-              <>
-                {/* Fixed Aura Logo at top */}
-                <div className="sticky top-0 z-10 flex justify-center py-4 bg-gradient-to-b from-slate-950 to-transparent">
-                  <div className="relative">
-                    <motion.div 
-                      animate={{ 
-                        boxShadow: [
-                          '0 0 15px rgba(124, 58, 237, 0.3)',
-                          '0 0 30px rgba(124, 58, 237, 0.5)',
-                          '0 0 15px rgba(124, 58, 237, 0.3)'
-                        ]
-                      }}
-                      transition={{ duration: 3, repeat: Infinity }}
-                      className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-full blur-xl opacity-40"
-                    />
-                    <div className="relative w-16 h-16">
-                      <AuraAvatar isSpeaking={status === AssistantStatus.SPEAKING} />
-                    </div>
-                  </div>
-                </div>
+              {messages.length === 0 && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="ml-6"
+                >
+                  <h2 className="text-3xl font-bold mb-2 bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
+                    Hi, I'm Aura
+                  </h2>
+                  <p className={mutedText}>Your AI-powered personal assistant</p>
+                </motion.div>
+              )}
+            </div>
+
+            {/* Chat Area - Fixed height with internal scroll */}
+            <div className="flex-1 overflow-hidden flex flex-col">
+              <div className="flex-1 overflow-y-auto p-6 space-y-4 aura-scrollbar">
                 <AnimatePresence>
                   {messages.map((msg) => (
-                  <motion.div 
-                    key={msg.id}
-                    initial={{ opacity: 0, scale: 0.8, y: 20 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                    transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                  <div className={`max-w-[70%] rounded-2xl px-4 py-3 ${msg.role === 'user' ? 'aura-accent shadow-lg' : `aura-card border ${borderColor}`}`}>
-                    <p className="text-sm leading-relaxed">{msg.content}</p>
-                    {msg.role === 'assistant' && (
-                      <button
-                        onClick={() => downloadAsDocument(msg)}
-                        className="mt-2 flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
-                        title="Download as document"
-                      >
-                        <Download className="w-3 h-3" />
-                        Download
-                      </button>
-                    )}
-                  </div>
-                </motion.div>
-                ))}
+                    <motion.div 
+                      key={msg.id}
+                      initial={{ opacity: 0, scale: 0.8, y: 20 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.8 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                      className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div className={`max-w-[70%] rounded-2xl px-4 py-3 ${msg.role === 'user' ? 'aura-accent shadow-lg' : `aura-card border ${borderColor}`}`}>
+                        <p className="text-sm leading-relaxed">{msg.content}</p>
+                        {msg.role === 'assistant' && (
+                          <button
+                            onClick={() => downloadAsDocument(msg)}
+                            className="mt-2 flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                            title="Download as document"
+                          >
+                            <Download className="w-3 h-3" />
+                            Download
+                          </button>
+                        )}
+                      </div>
+                    </motion.div>
+                  ))}
                 </AnimatePresence>
                 <div ref={messagesEndRef} />
-              </>
-            )}
-          </div>
+              </div>
 
-          {/* Input Bar */}
-          <div className={`p-4 border-t ${borderColor}`}>
-            <div className={`flex items-center gap-2 aura-card rounded-2xl px-4 py-2 border ${borderColor}`}>
-              <button className={`p-2 hover:bg-gray-700/10 rounded-lg transition-colors ${mutedText}`}>
-                <Paperclip className="w-5 h-5" />
-              </button>
-              <input
-                type="text"
-                value={textInput}
-                onChange={(e) => setTextInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSendText()}
-                placeholder="Type a message..."
-                className={`flex-1 bg-transparent outline-none ${textColor} aura-input`}
-              />
-              <button onClick={handleSendText} className="p-2 aura-accent rounded-xl hover:scale-105 transition-transform shadow-lg">
-                <Send className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Sidebar */}
-        <div className={`w-80 border-l ${borderColor} aura-card overflow-y-auto hidden lg:block`}>
-          <div className="p-6">
-            <h3 className="font-semibold mb-4 flex items-center gap-2">
-              <img src="/Aura AI logo.png" alt="AURA" className="w-5 h-5" />
-              AI Tools
-            </h3>
-            <div className="grid grid-cols-2 gap-3">
-              {QUICK_ACTIONS.map((action) => {
-                const Icon = action.icon;
-                return (
-                  <button
-                    key={action.name}
-                    onClick={() => handleQuickAction(action.name)}
-                    className={`group relative p-4 rounded-2xl border ${borderColor} hover:border-indigo-500/50 transition-all text-sm overflow-hidden hover-lift`}
-                  >
-                    <div className={`absolute inset-0 bg-gradient-to-br ${action.color} opacity-0 group-hover:opacity-10 transition-opacity`} />
-                    <div className="relative flex flex-col items-center gap-2">
-                      <Icon className="w-5 h-5 text-gray-400 group-hover:text-indigo-400 transition-colors" />
-                      <span className="text-xs font-medium">{action.name}</span>
-                    </div>
+              {/* Input Bar - Sticky at bottom */}
+              <div className={`shrink-0 p-4 border-t ${borderColor} ${cardBg}`}>
+                <div className={`flex items-center gap-2 aura-card rounded-2xl px-4 py-2 border ${borderColor}`}>
+                  <button className={`p-2 hover:bg-gray-700/10 rounded-lg transition-colors ${mutedText}`}>
+                    <Paperclip className="w-5 h-5" />
                   </button>
-                );
-              })}
+                  <input
+                    type="text"
+                    value={textInput}
+                    onChange={(e) => setTextInput(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSendText()}
+                    placeholder="Type a message..."
+                    className={`flex-1 bg-transparent outline-none ${textColor} aura-input`}
+                  />
+                  <button onClick={handleSendText} className="p-2 aura-accent rounded-xl hover:scale-105 transition-transform shadow-lg">
+                    <Send className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
+          </main>
+
+          {/* Right: Tools Panel - Always visible */}
+          <aside className={`hidden lg:block h-full border-l ${borderColor} ${cardBg} overflow-y-auto`}>
+            <div className="p-6">
+              <h3 className="font-semibold mb-4 flex items-center gap-2">
+                <img src="/Aura AI logo.png" alt="AURA" className="w-5 h-5" />
+                AI Tools
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                {QUICK_ACTIONS.map((action) => {
+                  const Icon = action.icon;
+                  return (
+                    <button
+                      key={action.name}
+                      onClick={() => handleQuickAction(action.name)}
+                      className={`group relative p-4 rounded-2xl border ${borderColor} hover:border-indigo-500/50 transition-all text-sm overflow-hidden hover-lift`}
+                    >
+                      <div className={`absolute inset-0 bg-gradient-to-br ${action.color} opacity-0 group-hover:opacity-10 transition-opacity`} />
+                      <div className="relative flex flex-col items-center gap-2">
+                        <Icon className="w-5 h-5 text-gray-400 group-hover:text-indigo-400 transition-colors" />
+                        <span className="text-xs font-medium">{action.name}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </aside>
         </div>
 
         {/* Mobile Sidebar Toggle */}
@@ -869,41 +849,41 @@ const App: React.FC = () => {
         </button>
       </div>
 
-      {/* Mobile Sidebar Drawer */}
-      {isSidebarOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex">
-          <div onClick={() => setIsSidebarOpen(false)} className="flex-1 bg-black/50 backdrop-blur-sm" />
-          <div className={`w-80 ${cardBg} p-6 overflow-y-auto border-l ${borderColor}`}>
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="font-semibold flex items-center gap-2">
-                <img src="/Aura AI logo.png" alt="AURA" className="w-5 h-5" />
-                AI Tools
-              </h3>
-              <button onClick={() => setIsSidebarOpen(false)} className="p-2 hover:bg-gray-700/10 rounded-lg">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {QUICK_ACTIONS.map((action) => {
-                const Icon = action.icon;
-                return (
-                  <button
-                    key={action.name}
-                    onClick={() => { handleQuickAction(action.name); setIsSidebarOpen(false); }}
-                    className={`group relative p-4 rounded-2xl border ${borderColor} hover:border-indigo-500/50 transition-all text-sm overflow-hidden`}
-                  >
-                    <div className={`absolute inset-0 bg-gradient-to-br ${action.color} opacity-0 group-hover:opacity-10 transition-opacity`} />
-                    <div className="relative flex flex-col items-center gap-2">
-                      <Icon className="w-5 h-5 text-gray-400 group-hover:text-indigo-400 transition-colors" />
-                      <span className="text-xs font-medium">{action.name}</span>
-                    </div>
-                  </button>
-                );
-              })}
+        {/* Mobile Sidebar Drawer */}
+        {isSidebarOpen && (
+          <div className="lg:hidden fixed inset-0 z-50 flex">
+            <div onClick={() => setIsSidebarOpen(false)} className="flex-1 bg-black/50 backdrop-blur-sm" />
+            <div className={`w-80 ${cardBg} p-6 overflow-y-auto border-l ${borderColor}`}>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <img src="/Aura AI logo.png" alt="AURA" className="w-5 h-5" />
+                  AI Tools
+                </h3>
+                <button onClick={() => setIsSidebarOpen(false)} className="p-2 hover:bg-gray-700/10 rounded-lg">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {QUICK_ACTIONS.map((action) => {
+                  const Icon = action.icon;
+                  return (
+                    <button
+                      key={action.name}
+                      onClick={() => { handleQuickAction(action.name); setIsSidebarOpen(false); }}
+                      className={`group relative p-4 rounded-2xl border ${borderColor} hover:border-indigo-500/50 transition-all text-sm overflow-hidden`}
+                    >
+                      <div className={`absolute inset-0 bg-gradient-to-br ${action.color} opacity-0 group-hover:opacity-10 transition-opacity`} />
+                      <div className="relative flex flex-col items-center gap-2">
+                        <Icon className="w-5 h-5 text-gray-400 group-hover:text-indigo-400 transition-colors" />
+                        <span className="text-xs font-medium">{action.name}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Tool Drawer */}
       {activeDrawer && (
