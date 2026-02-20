@@ -576,15 +576,22 @@ app.post('/api/tools/run', async (req, res) => {
           return res.status(400).json({ success: false, error: 'Text parameter required for translation' });
         }
         try {
-          const translateResponse = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(input.text)}&langpair=en|es`);
+          const fromLang = input.from || 'auto';
+          const toLang = input.to || 'en';
+          const translateResponse = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(input.text)}&langpair=${fromLang}|${toLang}`);
           if (translateResponse.ok) {
             const translateData = await translateResponse.json();
-            result = `Original: ${input.text}\nTranslated: ${translateData.responseData.translatedText}`;
+            result = {
+              original: input.text,
+              translated: translateData.responseData.translatedText,
+              from: fromLang,
+              to: toLang
+            };
           } else {
-            result = `Translation: ${input.text} (Translation service unavailable)`;
+            result = { error: 'Translation service unavailable' };
           }
         } catch (error) {
-          result = `Translation: ${input.text} (Translation failed)`;
+          result = { error: 'Translation failed' };
         }
         break;
         

@@ -17,6 +17,7 @@ import { AuraSketchpadDrawer } from './src/components/AuraSketchpadDrawer';
 import { AuraNotepadDrawer } from './src/components/AuraNotepadDrawer';
 import { AuraGamesDrawer } from './src/components/AuraGamesDrawer';
 import { AuraRoutePlanner } from './src/components/AuraRoutePlanner';
+import { AuraThemeManager } from './src/components/AuraThemeManager';
 import { pcControlNL, pcControlExecute } from './src/services/pcControl';
 import { API_BASE_URL } from './src/config/api';
 
@@ -144,6 +145,8 @@ const App: React.FC = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [textInput, setTextInput] = useState('');
   const [toolInput, setToolInput] = useState('');
+  const [fromLang, setFromLang] = useState('auto');
+  const [toLang, setToLang] = useState('en');
   const [toolResult, setToolResult] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [activeDrawer, setActiveDrawer] = useState<string | null>(null);
@@ -156,6 +159,8 @@ const App: React.FC = () => {
   const [showRoutePlanner, setShowRoutePlanner] = useState(false);
   const [showGames, setShowGames] = useState(false);
   const [showNotepad, setShowNotepad] = useState(false);
+  const [showThemes, setShowThemes] = useState(false);
+  const [currentTheme, setCurrentTheme] = useState('dark');
   
   const audioContextRef = useRef<AudioContext | null>(null);
   const sessionRef = useRef<any>(null);
@@ -478,6 +483,11 @@ const App: React.FC = () => {
       return;
     }
     
+    if (action === 'Themes') {
+      setShowThemes(true);
+      return;
+    }
+    
     setActiveDrawer(action);
     setToolResult(null);
     setToolInput('');
@@ -611,26 +621,48 @@ const App: React.FC = () => {
           break;
           
         case 'Wikipedia':
-        case 'Translator':
-        case 'Summarizer':
-          const toolMap: { [key: string]: string } = {
-            'Wikipedia': 'wikipedia',
-            'Translator': 'translator',
-            'Summarizer': 'summarizer'
-          };
-          
-          const apiResponse = await fetch(`${API_BASE_URL}/api/tools/run`, {
+          const wikiResponse = await fetch(`${API_BASE_URL}/api/tools/run`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
-              tool: toolMap[activeDrawer],
-              input: activeDrawer === 'Wikipedia' ? { query: toolInput } : { text: toolInput }
+              tool: 'wikipedia',
+              input: { query: toolInput }
             })
           });
           
-          const apiResult = await apiResponse.json();
-          if (!apiResult.success) throw new Error(apiResult.error || 'Tool execution failed');
-          setToolResult({ type: 'text', data: apiResult.data });
+          const wikiResult = await wikiResponse.json();
+          if (!wikiResult.success) throw new Error(wikiResult.error || 'Tool execution failed');
+          setToolResult({ type: 'text', data: wikiResult.data });
+          break;
+          
+        case 'Translator':
+          const transResponse = await fetch(`${API_BASE_URL}/api/tools/run`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              tool: 'translator',
+              input: { text: toolInput, from: fromLang, to: toLang }
+            })
+          });
+          
+          const transResult = await transResponse.json();
+          if (!transResult.success) throw new Error(transResult.error || 'Tool execution failed');
+          setToolResult({ type: 'translation', data: transResult.data });
+          break;
+          
+        case 'Summarizer':
+          const summResponse = await fetch(`${API_BASE_URL}/api/tools/run`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              tool: 'summarizer',
+              input: { text: toolInput }
+            })
+          });
+          
+          const summResult = await summResponse.json();
+          if (!summResult.success) throw new Error(summResult.error || 'Tool execution failed');
+          setToolResult({ type: 'text', data: summResult.data });
           break;
           
         case 'Notepad':
@@ -1207,6 +1239,32 @@ const App: React.FC = () => {
                     </div>
                   )}
                   
+                  {toolResult.type === 'translation' && (
+                    <div className={`p-6 rounded-2xl border ${borderColor} ${cardBg} space-y-4`}>
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className={`text-sm ${mutedText}`}>Original ({toolResult.data.from === 'auto' ? 'Auto-detected' : toolResult.data.from.toUpperCase()})</span>
+                        </div>
+                        <div className={`p-4 rounded-xl border ${borderColor} bg-slate-800/50`}>
+                          <p className="whitespace-pre-wrap">{toolResult.data.original}</p>
+                        </div>
+                      </div>
+                      <div className="flex justify-center">
+                        <div className="p-2 rounded-full bg-indigo-500/20">
+                          <Languages className="w-5 h-5 text-indigo-400" />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className={`text-sm ${mutedText}`}>Translated ({toolResult.data.to.toUpperCase()})</span>
+                        </div>
+                        <div className={`p-4 rounded-xl border ${borderColor} bg-indigo-500/10`}>
+                          <p className="whitespace-pre-wrap font-medium">{toolResult.data.translated}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
                   {toolResult.type === 'placeholder' && (
                     <div className={`p-8 rounded-2xl border ${borderColor} ${cardBg} text-center ${mutedText}`}>
                       {toolResult.data}
@@ -1262,6 +1320,69 @@ const App: React.FC = () => {
                       </div>
                     </div>
                   </div>
+                </div>
+              </div>
+            ) : activeDrawer === 'Translator' ? (
+              <div className={`p-4 border-t ${borderColor} space-y-3`}>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className={`text-xs ${mutedText} mb-1 block`}>From</label>
+                    <select value={fromLang} onChange={(e) => setFromLang(e.target.value)} className={`w-full px-3 py-2 rounded-lg border ${borderColor} ${cardBg} outline-none focus:border-indigo-500 text-sm`}>
+                      <option value="auto">Auto-detect</option>
+                      <option value="en">English</option>
+                      <option value="es">Spanish</option>
+                      <option value="fr">French</option>
+                      <option value="de">German</option>
+                      <option value="it">Italian</option>
+                      <option value="pt">Portuguese</option>
+                      <option value="ru">Russian</option>
+                      <option value="ja">Japanese</option>
+                      <option value="ko">Korean</option>
+                      <option value="zh">Chinese</option>
+                      <option value="ar">Arabic</option>
+                      <option value="hi">Hindi</option>
+                      <option value="te">Telugu</option>
+                      <option value="ta">Tamil</option>
+                      <option value="bn">Bengali</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className={`text-xs ${mutedText} mb-1 block`}>To</label>
+                    <select value={toLang} onChange={(e) => setToLang(e.target.value)} className={`w-full px-3 py-2 rounded-lg border ${borderColor} ${cardBg} outline-none focus:border-indigo-500 text-sm`}>
+                      <option value="en">English</option>
+                      <option value="es">Spanish</option>
+                      <option value="fr">French</option>
+                      <option value="de">German</option>
+                      <option value="it">Italian</option>
+                      <option value="pt">Portuguese</option>
+                      <option value="ru">Russian</option>
+                      <option value="ja">Japanese</option>
+                      <option value="ko">Korean</option>
+                      <option value="zh">Chinese</option>
+                      <option value="ar">Arabic</option>
+                      <option value="hi">Hindi</option>
+                      <option value="te">Telugu</option>
+                      <option value="ta">Tamil</option>
+                      <option value="bn">Bengali</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={toolInput}
+                    onChange={(e) => setToolInput(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleToolSubmit()}
+                    placeholder="Enter text to translate..."
+                    className={`flex-1 px-4 py-3 rounded-xl border ${borderColor} ${cardBg} outline-none focus:border-indigo-500 transition-colors`}
+                  />
+                  <button
+                    onClick={handleToolSubmit}
+                    disabled={isLoading}
+                    className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all disabled:opacity-50 font-medium"
+                  >
+                    Translate
+                  </button>
                 </div>
               </div>
             ) : !['Weather', 'News', 'Time', 'The Founder'].includes(activeDrawer) && (
@@ -1344,6 +1465,17 @@ const App: React.FC = () => {
       
       {showRoutePlanner && (
         <AuraRoutePlanner onClose={() => setShowRoutePlanner(false)} />
+      )}
+      
+      {showThemes && (
+        <AuraThemeManager 
+          onClose={() => setShowThemes(false)}
+          currentTheme={currentTheme}
+          onThemeChange={(theme) => {
+            setCurrentTheme(theme);
+            setIsDark(theme === 'dark');
+          }}
+        />
       )}
     </AuraV3Wrapper>
   );
