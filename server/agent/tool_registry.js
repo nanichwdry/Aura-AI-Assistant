@@ -9,9 +9,8 @@ export const tools = {
   },
 
   async weather(input) {
-    const city = input.city || 'Frederick';
-    const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${process.env.OPENWEATHER_API_KEY}&units=metric`);
-    return await res.json();
+    const { weather_enhanced } = await import('../tools/weather_enhanced.js');
+    return await weather_enhanced(input);
   },
 
   async news(input) {
