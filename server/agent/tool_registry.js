@@ -15,13 +15,8 @@ export const tools = {
   },
 
   async news(input) {
-    const { category = 'general', country = 'us', query } = input;
-    const url = query 
-      ? `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&sortBy=publishedAt&apiKey=${process.env.NEWS_API_KEY}`
-      : `https://newsapi.org/v2/top-headlines?country=${country}&category=${category}&apiKey=${process.env.NEWS_API_KEY}`;
-    const res = await fetch(url);
-    const data = await res.json();
-    return data.articles.slice(0, 10);
+    const { news_fetch } = await import('../tools/news_fetch.js');
+    return await news_fetch(input);
   },
 
   async code_analyzer(input) {
