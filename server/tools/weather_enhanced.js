@@ -19,7 +19,7 @@ export async function weather_enhanced(input) {
     }
 
     const [weatherRes, airQualityRes, pollenRes] = await Promise.all([
-      fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${coords.lat}&lon=${coords.lng}&appid=${process.env.OPENWEATHER_API_KEY}&units=metric`),
+      fetch(`https://weather.googleapis.com/v1/currentConditions:lookup?key=${GOOGLE_API_KEY}&location.latitude=${coords.lat}&location.longitude=${coords.lng}&languageCode=en`),
       fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${GOOGLE_API_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -38,11 +38,11 @@ export async function weather_enhanced(input) {
         city,
         coordinates: coords,
         weather: {
-          temp: weather.main?.temp,
-          feelsLike: weather.main?.feels_like,
-          humidity: weather.main?.humidity,
-          description: weather.weather?.[0]?.description,
-          icon: weather.weather?.[0]?.icon
+          temp: weather.temperature?.value,
+          feelsLike: weather.apparentTemperature?.value,
+          humidity: weather.humidity?.value,
+          description: weather.weatherCode,
+          icon: weather.weatherCode
         },
         airQuality: {
           aqi: airQuality.indexes?.[0]?.aqi,
