@@ -16,6 +16,8 @@ import musicRoutes from './routes/music.js';
 import personalizationRoutes from './routes/personalization.js';
 import { runAuraCommand } from './aura/executor.js';
 
+import placesRoutes from './routes/places.js';
+
 const AURA_EXECUTOR_ENABLED = process.env.AURA_EXECUTOR === 'true';
 
 const AGENT_URL = 'http://127.0.0.1:8787/tool/run';
@@ -104,6 +106,7 @@ app.use('/api/sketch', sketchRoutes);
 app.use('/api/news', newsRoutes);
 app.use('/api/music', musicRoutes);
 app.use('/api/personalization', personalizationRoutes);
+app.use('/api/places', placesRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

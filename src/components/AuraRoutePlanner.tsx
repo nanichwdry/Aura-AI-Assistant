@@ -63,8 +63,7 @@ export function AuraRoutePlanner({ onClose }: Props) {
     
     try {
       const response = await fetch(
-        `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&types=address&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}`,
-        { mode: 'cors' }
+        `/api/places/autocomplete?input=${encodeURIComponent(input)}`
       );
       
       if (!response.ok) return [];
