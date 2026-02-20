@@ -194,11 +194,14 @@ export async function planRoute({ origin, destination, preference = 'fastest', d
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
     
     if (!apiKey) {
+      console.error('[route_planner] GOOGLE_MAPS_API_KEY not set');
       return {
         success: false,
         error: 'Google Maps API key not configured'
       };
     }
+
+    console.log('[route_planner] Request:', { origin, destination, apiKey: apiKey.substring(0, 10) + '...' });
 
     const departureTimeISO = safeDepartureTimeISO(departureTime);
     console.log('[route_planner] using routes v2 computeRoutes', departureTimeISO);
@@ -227,12 +230,15 @@ export async function planRoute({ origin, destination, preference = 'fastest', d
 
     const normalJson = await standardResponse.json();
     
+    console.log('[route_planner] Response status:', standardResponse.status);
+    console.log('[route_planner] Response:', JSON.stringify(normalJson).substring(0, 500));
+    
     // Check for API error
     if (normalJson.error) {
       console.error('[route_planner] Routes API error:', normalJson.error);
       return {
         success: false,
-        error: `Routes API error ${normalJson.error.code}: ${normalJson.error.message}`
+        error: `Routes API error ${normalJson.error.code}: ${normalJson.error.message}. Check: 1) Routes API enabled 2) Billing enabled 3) API key restrictions`
       };
     }
 

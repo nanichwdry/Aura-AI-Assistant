@@ -1345,7 +1345,6 @@ const App: React.FC = () => {
       {showRoutePlanner && (
         <AuraRoutePlanner onClose={() => setShowRoutePlanner(false)} />
       )}
-      </div>
     </AuraV3Wrapper>
   );
 };
