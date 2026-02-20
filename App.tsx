@@ -899,28 +899,30 @@ const App: React.FC = () => {
 
             {/* Hero Area - Transitions between full and compact */}
             <div className={`shrink-0 transition-all duration-500 ${messages.length === 0 ? 'h-64' : 'h-20'} flex items-center justify-center`}>
-              <motion.div 
-                animate={{ 
-                  scale: messages.length === 0 ? 1 : 0.5,
-                  opacity: messages.length === 0 ? 1 : 0.7
-                }}
-                transition={{ duration: 0.5 }}
-                className="relative flex items-center gap-6"
-              >
+              <div className="flex items-center gap-6">
                 <motion.div 
                   animate={{ 
-                    boxShadow: [
-                      '0 0 20px rgba(124, 58, 237, 0.3)',
-                      '0 0 60px rgba(124, 58, 237, 0.6)',
-                      '0 0 20px rgba(124, 58, 237, 0.3)'
-                    ]
+                    scale: messages.length === 0 ? 1 : 0.5,
+                    opacity: messages.length === 0 ? 1 : 0.7
                   }}
-                  transition={{ duration: 3, repeat: Infinity }}
-                  className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl blur-2xl opacity-50"
-                />
-                <div className="relative">
-                  <AuraAvatar isSpeaking={status === AssistantStatus.SPEAKING} />
-                </div>
+                  transition={{ duration: 0.5 }}
+                  className="relative"
+                >
+                  <motion.div 
+                    animate={{ 
+                      boxShadow: [
+                        '0 0 20px rgba(124, 58, 237, 0.3)',
+                        '0 0 60px rgba(124, 58, 237, 0.6)',
+                        '0 0 20px rgba(124, 58, 237, 0.3)'
+                      ]
+                    }}
+                    transition={{ duration: 3, repeat: Infinity }}
+                    className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl blur-2xl opacity-50"
+                  />
+                  <div className="relative">
+                    <AuraAvatar isSpeaking={status === AssistantStatus.SPEAKING} />
+                  </div>
+                </motion.div>
                 {messages.length === 0 && (
                   <motion.div
                     initial={{ opacity: 0 }}
@@ -932,7 +934,7 @@ const App: React.FC = () => {
                     <p className={mutedText}>Your AI-powered personal assistant</p>
                   </motion.div>
                 )}
-              </motion.div>
+              </div>
             </div>
 
             {/* Chat Area - Fixed height with internal scroll */}

@@ -71,18 +71,20 @@ export function AuraMusicPlayer({ onClose, onMinimize }: Props) {
     setIsLoading(true);
     
     try {
-      const response = await fetch(`/api/music/search?q=${encodeURIComponent(searchQuery)}`);
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+      const response = await fetch(`${API_BASE_URL}/api/music/search?q=${encodeURIComponent(searchQuery)}`);
       const data = await response.json();
       
-      if (data.success) {
+      if (data.success && data.videos && data.videos.length > 0) {
         setPlaylist(data.videos);
         setCurrentIndex(0);
-        if (data.videos.length > 0) {
-          playVideo(data.videos[0].videoId);
-        }
+        playVideo(data.videos[0].videoId);
+      } else {
+        alert(data.message || 'No music found. Please check YouTube API key.');
       }
     } catch (error) {
       console.error('Music search failed:', error);
+      alert('Music search failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
