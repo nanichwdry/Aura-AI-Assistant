@@ -162,6 +162,56 @@ const App: React.FC = () => {
   const [showThemes, setShowThemes] = useState(false);
   const [currentTheme, setCurrentTheme] = useState('dark');
   
+  const getThemeColors = () => {
+    const themes: Record<string, { bg: string; card: string; text: string; muted: string; border: string }> = {
+      dark: {
+        bg: 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950',
+        card: 'bg-slate-900/50 backdrop-blur-xl',
+        text: 'text-gray-100',
+        muted: 'text-gray-400',
+        border: 'border-slate-800/50'
+      },
+      light: {
+        bg: 'bg-gradient-to-br from-gray-50 via-white to-gray-50',
+        card: 'bg-white/50 backdrop-blur-xl',
+        text: 'text-gray-900',
+        muted: 'text-gray-600',
+        border: 'border-gray-200/50'
+      },
+      blue: {
+        bg: 'bg-gradient-to-br from-blue-950 via-blue-900 to-slate-950',
+        card: 'bg-blue-900/50 backdrop-blur-xl',
+        text: 'text-blue-50',
+        muted: 'text-blue-300',
+        border: 'border-blue-800/50'
+      },
+      purple: {
+        bg: 'bg-gradient-to-br from-purple-950 via-purple-900 to-slate-950',
+        card: 'bg-purple-900/50 backdrop-blur-xl',
+        text: 'text-purple-50',
+        muted: 'text-purple-300',
+        border: 'border-purple-800/50'
+      },
+      green: {
+        bg: 'bg-gradient-to-br from-green-950 via-green-900 to-slate-950',
+        card: 'bg-green-900/50 backdrop-blur-xl',
+        text: 'text-green-50',
+        muted: 'text-green-300',
+        border: 'border-green-800/50'
+      },
+      rose: {
+        bg: 'bg-gradient-to-br from-rose-950 via-rose-900 to-slate-950',
+        card: 'bg-rose-900/50 backdrop-blur-xl',
+        text: 'text-rose-50',
+        muted: 'text-rose-300',
+        border: 'border-rose-800/50'
+      }
+    };
+    return themes[currentTheme] || themes.dark;
+  };
+  
+  const theme = getThemeColors();
+  
   const audioContextRef = useRef<AudioContext | null>(null);
   const sessionRef = useRef<any>(null);
   const nextStartTimeRef = useRef(0);
@@ -786,11 +836,11 @@ const App: React.FC = () => {
     }
   };
 
-  const bgColor = isDark ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950' : 'bg-gradient-to-br from-gray-50 via-white to-gray-50';
-  const cardBg = isDark ? 'bg-slate-900/50 backdrop-blur-xl' : 'bg-white/50 backdrop-blur-xl';
-  const textColor = isDark ? 'text-gray-100' : 'text-gray-900';
-  const mutedText = isDark ? 'text-gray-400' : 'text-gray-600';
-  const borderColor = isDark ? 'border-slate-800/50' : 'border-gray-200/50';
+  const bgColor = theme.bg;
+  const cardBg = theme.card;
+  const textColor = theme.text;
+  const mutedText = theme.muted;
+  const borderColor = theme.border;
   const accentColor = 'indigo';
 
   return (
@@ -855,7 +905,7 @@ const App: React.FC = () => {
                   opacity: messages.length === 0 ? 1 : 0.7
                 }}
                 transition={{ duration: 0.5 }}
-                className="relative"
+                className="relative flex items-center gap-6"
               >
                 <motion.div 
                   animate={{ 
@@ -871,19 +921,18 @@ const App: React.FC = () => {
                 <div className="relative">
                   <AuraAvatar isSpeaking={status === AssistantStatus.SPEAKING} />
                 </div>
+                {messages.length === 0 && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                  >
+                    <h2 className="text-3xl font-bold mb-2 bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
+                      Hi, I'm Aura
+                    </h2>
+                    <p className={mutedText}>Your AI-powered personal assistant</p>
+                  </motion.div>
+                )}
               </motion.div>
-              {messages.length === 0 && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="ml-6"
-                >
-                  <h2 className="text-3xl font-bold mb-2 bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
-                    Hi, I'm Aura
-                  </h2>
-                  <p className={mutedText}>Your AI-powered personal assistant</p>
-                </motion.div>
-              )}
             </div>
 
             {/* Chat Area - Fixed height with internal scroll */}
@@ -1329,7 +1378,11 @@ const App: React.FC = () => {
                     <label className={`text-xs ${mutedText} mb-1 block`}>From</label>
                     <select value={fromLang} onChange={(e) => setFromLang(e.target.value)} className={`w-full px-3 py-2 rounded-lg border ${borderColor} ${cardBg} outline-none focus:border-indigo-500 text-sm`}>
                       <option value="auto">Auto-detect</option>
+                      <option value="te">Telugu</option>
                       <option value="en">English</option>
+                      <option value="hi">Hindi</option>
+                      <option value="ta">Tamil</option>
+                      <option value="bn">Bengali</option>
                       <option value="es">Spanish</option>
                       <option value="fr">French</option>
                       <option value="de">German</option>
@@ -1340,16 +1393,16 @@ const App: React.FC = () => {
                       <option value="ko">Korean</option>
                       <option value="zh">Chinese</option>
                       <option value="ar">Arabic</option>
-                      <option value="hi">Hindi</option>
-                      <option value="te">Telugu</option>
-                      <option value="ta">Tamil</option>
-                      <option value="bn">Bengali</option>
                     </select>
                   </div>
                   <div>
                     <label className={`text-xs ${mutedText} mb-1 block`}>To</label>
                     <select value={toLang} onChange={(e) => setToLang(e.target.value)} className={`w-full px-3 py-2 rounded-lg border ${borderColor} ${cardBg} outline-none focus:border-indigo-500 text-sm`}>
                       <option value="en">English</option>
+                      <option value="te">Telugu</option>
+                      <option value="hi">Hindi</option>
+                      <option value="ta">Tamil</option>
+                      <option value="bn">Bengali</option>
                       <option value="es">Spanish</option>
                       <option value="fr">French</option>
                       <option value="de">German</option>
@@ -1360,10 +1413,6 @@ const App: React.FC = () => {
                       <option value="ko">Korean</option>
                       <option value="zh">Chinese</option>
                       <option value="ar">Arabic</option>
-                      <option value="hi">Hindi</option>
-                      <option value="te">Telugu</option>
-                      <option value="ta">Tamil</option>
-                      <option value="bn">Bengali</option>
                     </select>
                   </div>
                 </div>

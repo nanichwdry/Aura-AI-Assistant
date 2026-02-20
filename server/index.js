@@ -576,22 +576,41 @@ app.post('/api/tools/run', async (req, res) => {
           return res.status(400).json({ success: false, error: 'Text parameter required for translation' });
         }
         try {
-          const fromLang = input.from || 'auto';
           const toLang = input.to || 'en';
-          const translateResponse = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(input.text)}&langpair=${fromLang}|${toLang}`);
-          if (translateResponse.ok) {
-            const translateData = await translateResponse.json();
-            result = {
-              original: input.text,
-              translated: translateData.responseData.translatedText,
-              from: fromLang,
-              to: toLang
-            };
+          let fromLang = input.from;
+          let translatedText = '';
+          let detectedLang = fromLang;
+          
+          // If auto-detect, use Google Translate API via Gemini
+          if (!fromLang || fromLang === 'auto') {
+            const { GoogleGenerativeAI } = await import('@google/generative-ai');
+            const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+            const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+            
+            const prompt = `Translate this text to ${toLang === 'en' ? 'English' : toLang}. Only return the translation, nothing else:\n\n${input.text}`;
+            const result = await model.generateContent(prompt);
+            translatedText = result.response.text();
+            detectedLang = 'auto';
           } else {
-            result = { error: 'Translation service unavailable' };
+            // Use MyMemory API for specific language pairs
+            const translateResponse = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(input.text)}&langpair=${fromLang}|${toLang}`);
+            if (translateResponse.ok) {
+              const translateData = await translateResponse.json();
+              translatedText = translateData.responseData.translatedText;
+              detectedLang = fromLang;
+            } else {
+              throw new Error('Translation service unavailable');
+            }
           }
+          
+          result = {
+            original: input.text,
+            translated: translatedText,
+            from: detectedLang,
+            to: toLang
+          };
         } catch (error) {
-          result = { error: 'Translation failed' };
+          result = { error: 'Translation failed: ' + error.message };
         }
         break;
         
