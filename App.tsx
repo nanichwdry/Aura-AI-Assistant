@@ -1118,94 +1118,63 @@ const App: React.FC = () => {
                 </div>
               ) : toolResult ? (
                 <div className="space-y-4">
-                  {toolResult.type === 'weather' && toolResult.data && toolResult.data.main && (
-                    <div className="relative p-6 rounded-2xl border border-transparent overflow-hidden" style={{ minHeight: '300px' }}>
-                      {/* Weather animation background */}
-                      <div className="absolute inset-0 z-0">
-                        {toolResult.data.weather?.[0]?.main === 'Snow' && (
-                          <div className="absolute inset-0">
-                            {[...Array(50)].map((_, i) => (
-                              <div
-                                key={i}
-                                className="absolute w-2 h-2 bg-white rounded-full opacity-80"
-                                style={{
-                                  left: `${Math.random() * 100}%`,
-                                  animation: `snowfall ${3 + Math.random() * 5}s linear infinite`,
-                                  animationDelay: `${Math.random() * 5}s`
-                                }}
-                              />
-                            ))}
-                          </div>
-                        )}
-                        {toolResult.data.weather?.[0]?.main === 'Rain' && (
-                          <div className="absolute inset-0">
-                            {[...Array(100)].map((_, i) => (
-                              <div
-                                key={i}
-                                className="absolute w-0.5 h-8 bg-blue-400/60"
-                                style={{
-                                  left: `${Math.random() * 100}%`,
-                                  animation: `rainfall ${0.5 + Math.random() * 1}s linear infinite`,
-                                  animationDelay: `${Math.random() * 2}s`
-                                }}
-                              />
-                            ))}
-                          </div>
-                        )}
-                        {toolResult.data.weather?.[0]?.main === 'Thunderstorm' && (
-                          <div className="absolute inset-0">
-                            {[...Array(100)].map((_, i) => (
-                              <div
-                                key={i}
-                                className="absolute w-0.5 h-8 bg-blue-400/60"
-                                style={{
-                                  left: `${Math.random() * 100}%`,
-                                  animation: `rainfall ${0.5 + Math.random() * 1}s linear infinite`,
-                                  animationDelay: `${Math.random() * 2}s`
-                                }}
-                              />
-                            ))}
-                            <div className="absolute inset-0 animate-pulse" style={{ animation: 'lightning 4s infinite' }} />
-                          </div>
-                        )}
-                        {toolResult.data.weather?.[0]?.main === 'Clear' && (
-                          <div className="absolute inset-0 bg-gradient-to-b from-blue-400/20 to-yellow-400/20" />
-                        )}
-                        {toolResult.data.weather?.[0]?.main === 'Clouds' && (
-                          <div className="absolute inset-0 bg-gradient-to-b from-gray-400/20 to-gray-600/20" />
-                        )}
-                      </div>
-                      
-                      {/* Weather content */}
-                      <div className="relative z-10 backdrop-blur-sm bg-slate-900/50 p-6 rounded-xl">
-                        <div className="flex items-center justify-between mb-4">
+                  {toolResult.type === 'weather' && toolResult.data && (
+                    <div className="relative p-6 rounded-2xl border border-transparent overflow-hidden">
+                      <div className="relative z-10 backdrop-blur-sm bg-slate-900/50 p-6 rounded-xl space-y-4">
+                        <div className="mb-4">
+                          <h4 className="text-2xl font-bold">{toolResult.data.name || 'Unknown Location'}</h4>
+                        </div>
+                        
+                        {/* Air Quality */}
+                        {toolResult.data.airQuality?.indexes && (
                           <div>
-                            <h4 className="text-2xl font-bold">{toolResult.data.name || 'Unknown Location'}</h4>
-                            <p className={mutedText}>{toolResult.data.weather?.[0]?.description || 'No description'}</p>
+                            <h5 className="font-semibold mb-3 flex items-center gap-2">
+                              <span>Air Quality</span>
+                              <span className={`px-3 py-1 rounded-full text-sm ${
+                                toolResult.data.airQuality.indexes[0].aqi <= 50 ? 'bg-green-500/20 text-green-400' :
+                                toolResult.data.airQuality.indexes[0].aqi <= 100 ? 'bg-yellow-500/20 text-yellow-400' :
+                                toolResult.data.airQuality.indexes[0].aqi <= 150 ? 'bg-orange-500/20 text-orange-400' :
+                                toolResult.data.airQuality.indexes[0].aqi <= 200 ? 'bg-red-500/20 text-red-400' : 'bg-purple-500/20 text-purple-400'
+                              }`}>
+                                {toolResult.data.airQuality.indexes[0].category}
+                              </span>
+                            </h5>
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                              <div className="p-3 rounded-lg bg-slate-800/50">
+                                <span className={mutedText}>AQI:</span>
+                                <span className="ml-2 font-semibold">{toolResult.data.airQuality.indexes[0].aqi}</span>
+                              </div>
+                              {toolResult.data.airQuality.pollutants?.slice(0, 3).map((pollutant: any, i: number) => (
+                                <div key={i} className="p-3 rounded-lg bg-slate-800/50">
+                                  <span className={mutedText}>{pollutant.code}:</span>
+                                  <span className="ml-2 font-semibold">{pollutant.concentration?.value?.toFixed(1)} {pollutant.concentration?.units}</span>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                          <div className="text-4xl font-bold">{Math.round(toolResult.data.main.temp)}°C</div>
-                        </div>
-                        <div className="grid grid-cols-3 gap-4 text-sm">
-                          <div><span className={mutedText}>Feels like:</span> {Math.round(toolResult.data.main.feels_like)}°C</div>
-                          <div><span className={mutedText}>Humidity:</span> {toolResult.data.main.humidity}%</div>
-                          <div><span className={mutedText}>Wind:</span> {toolResult.data.wind?.speed || 0} m/s</div>
-                        </div>
+                        )}
+                        
+                        {/* Pollen */}
+                        {toolResult.data.pollen?.dailyInfo?.[0] && (
+                          <div className="mt-4 pt-4 border-t border-slate-700/50">
+                            <h5 className="font-semibold mb-3">Pollen Forecast</h5>
+                            <div className="grid grid-cols-3 gap-3 text-sm">
+                              {toolResult.data.pollen.dailyInfo[0].pollenTypeInfo?.map((pollen: any, i: number) => (
+                                <div key={i} className="p-3 rounded-lg bg-slate-800/50">
+                                  <div className={mutedText}>{pollen.displayName}:</div>
+                                  <div className={`font-semibold ${
+                                    pollen.indexInfo.value <= 1 ? 'text-green-400' :
+                                    pollen.indexInfo.value <= 2 ? 'text-yellow-400' :
+                                    pollen.indexInfo.value <= 3 ? 'text-orange-400' : 'text-red-400'
+                                  }`}>
+                                    {pollen.indexInfo.category}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      
-                      <style>{`
-                        @keyframes snowfall {
-                          0% { transform: translateY(-10px) translateX(0); }
-                          100% { transform: translateY(400px) translateX(50px); }
-                        }
-                        @keyframes rainfall {
-                          0% { transform: translateY(-10px); opacity: 1; }
-                          100% { transform: translateY(400px); opacity: 0.3; }
-                        }
-                        @keyframes lightning {
-                          0%, 90%, 100% { background: transparent; }
-                          91%, 93%, 95% { background: rgba(255, 255, 255, 0.3); }
-                        }
-                      `}</style>
                     </div>
                   )}
                   

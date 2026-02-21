@@ -221,14 +221,44 @@ app.post('/api/tools/run', async (req, res) => {
       case 'weather':
         try {
           const city = input.city || 'Frederick';
-          const weatherResponse = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${process.env.OPENWEATHER_API_KEY}&units=metric`);
-          result = await weatherResponse.json();
+          const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+          
+          // Get coordinates from city name
+          const geocodeResponse = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(city)}&key=${apiKey}`);
+          const geocodeData = await geocodeResponse.json();
+          
+          if (!geocodeData.results?.[0]) {
+            throw new Error('Location not found');
+          }
+          
+          const location = geocodeData.results[0].geometry.location;
+          const locationName = geocodeData.results[0].formatted_address;
+          
+          // Get air quality data
+          const aqResponse = await fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              location: { latitude: location.lat, longitude: location.lng }
+            })
+          });
+          const aqData = await aqResponse.json();
+          
+          // Get pollen data
+          const pollenResponse = await fetch(`https://pollen.googleapis.com/v1/forecast:lookup?key=${apiKey}&location.latitude=${location.lat}&location.longitude=${location.lng}&days=1`);
+          const pollenData = await pollenResponse.json();
+          
+          result = {
+            name: locationName.split(',')[0],
+            location: location,
+            airQuality: aqData,
+            pollen: pollenData
+          };
         } catch (error) {
+          console.error('Weather API error:', error);
           result = {
             name: 'Frederick',
-            main: { temp: 0, feels_like: 0, humidity: 0 },
-            weather: [{ description: 'Weather service unavailable' }],
-            wind: { speed: 0 }
+            error: 'Weather service unavailable'
           };
         }
         break;
