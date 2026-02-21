@@ -234,31 +234,53 @@ app.post('/api/tools/run', async (req, res) => {
           const location = geocodeData.results[0].geometry.location;
           const locationName = geocodeData.results[0].formatted_address;
           
-          // Get air quality data
-          const aqResponse = await fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              location: { latitude: location.lat, longitude: location.lng }
-            })
-          });
-          const aqData = await aqResponse.json();
+          // Get weather from OpenWeather as base
+          const weatherResponse = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${location.lat}&lon=${location.lng}&appid=${process.env.OPENWEATHER_API_KEY}&units=metric`);
+          const weatherData = await weatherResponse.json();
           
-          // Get pollen data
-          const pollenResponse = await fetch(`https://pollen.googleapis.com/v1/forecast:lookup?key=${apiKey}&location.latitude=${location.lat}&location.longitude=${location.lng}&days=1`);
-          const pollenData = await pollenResponse.json();
+          // Try to get air quality data from Google
+          let airQuality = null;
+          try {
+            const aqResponse = await fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${apiKey}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                location: { latitude: location.lat, longitude: location.lng }
+              })
+            });
+            if (aqResponse.ok) {
+              airQuality = await aqResponse.json();
+            }
+          } catch (e) {
+            console.log('Air Quality API not available');
+          }
+          
+          // Try to get pollen data from Google
+          let pollen = null;
+          try {
+            const pollenResponse = await fetch(`https://pollen.googleapis.com/v1/forecast:lookup?key=${apiKey}&location.latitude=${location.lat}&location.longitude=${location.lng}&days=1`);
+            if (pollenResponse.ok) {
+              pollen = await pollenResponse.json();
+            }
+          } catch (e) {
+            console.log('Pollen API not available');
+          }
           
           result = {
+            ...weatherData,
             name: locationName.split(',')[0],
             location: location,
-            airQuality: aqData,
-            pollen: pollenData
+            airQuality: airQuality,
+            pollen: pollen
           };
         } catch (error) {
           console.error('Weather API error:', error);
           result = {
             name: 'Frederick',
-            error: 'Weather service unavailable'
+            main: { temp: 0, feels_like: 0, humidity: 0 },
+            weather: [{ description: 'Weather service unavailable' }],
+            wind: { speed: 0 },
+            error: error.message
           };
         }
         break;

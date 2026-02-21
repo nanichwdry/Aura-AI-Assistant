@@ -1121,13 +1121,29 @@ const App: React.FC = () => {
                   {toolResult.type === 'weather' && toolResult.data && (
                     <div className="relative p-6 rounded-2xl border border-transparent overflow-hidden">
                       <div className="relative z-10 backdrop-blur-sm bg-slate-900/50 p-6 rounded-xl space-y-4">
-                        <div className="mb-4">
-                          <h4 className="text-2xl font-bold">{toolResult.data.name || 'Unknown Location'}</h4>
+                        <div className="flex items-center justify-between mb-4">
+                          <div>
+                            <h4 className="text-2xl font-bold">{toolResult.data.name || 'Unknown Location'}</h4>
+                            {toolResult.data.weather?.[0] && (
+                              <p className={mutedText}>{toolResult.data.weather[0].description}</p>
+                            )}
+                          </div>
+                          {toolResult.data.main && (
+                            <div className="text-4xl font-bold">{Math.round(toolResult.data.main.temp)}°C</div>
+                          )}
                         </div>
+                        
+                        {toolResult.data.main && (
+                          <div className="grid grid-cols-3 gap-4 text-sm mb-4">
+                            <div><span className={mutedText}>Feels like:</span> {Math.round(toolResult.data.main.feels_like)}°C</div>
+                            <div><span className={mutedText}>Humidity:</span> {toolResult.data.main.humidity}%</div>
+                            <div><span className={mutedText}>Wind:</span> {toolResult.data.wind?.speed || 0} m/s</div>
+                          </div>
+                        )}
                         
                         {/* Air Quality */}
                         {toolResult.data.airQuality?.indexes && (
-                          <div>
+                          <div className="pt-4 border-t border-slate-700/50">
                             <h5 className="font-semibold mb-3 flex items-center gap-2">
                               <span>Air Quality</span>
                               <span className={`px-3 py-1 rounded-full text-sm ${
@@ -1156,7 +1172,7 @@ const App: React.FC = () => {
                         
                         {/* Pollen */}
                         {toolResult.data.pollen?.dailyInfo?.[0] && (
-                          <div className="mt-4 pt-4 border-t border-slate-700/50">
+                          <div className="pt-4 border-t border-slate-700/50">
                             <h5 className="font-semibold mb-3">Pollen Forecast</h5>
                             <div className="grid grid-cols-3 gap-3 text-sm">
                               {toolResult.data.pollen.dailyInfo[0].pollenTypeInfo?.map((pollen: any, i: number) => (
