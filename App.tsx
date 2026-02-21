@@ -767,7 +767,7 @@ const App: React.FC = () => {
       }
       
       const ai = new GoogleGenAI({ apiKey });
-      const model = ai.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+      const model = ai.getGenerativeModel({ model: 'gemini-pro' });
       const result = await model.generateContent(userMessage);
       const response = result.response.text();
       
