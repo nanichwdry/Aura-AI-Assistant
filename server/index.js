@@ -780,18 +780,27 @@ app.post('/api/tools/run', async (req, res) => {
         }
         
         try {
-          // Import the upgraded route planner
           const { planRoute } = await import('./tools/route_planner.js');
           const routeResult = await planRoute({ origin, destination, preference });
           
           if (!routeResult.success) {
-            return res.status(500).json(routeResult);
+            return res.json({ success: false, error: routeResult.error });
           }
           
-          result = routeResult.data;
+          // Format for easier consumption
+          const standard = routeResult.data.routes.standard[0];
+          const noTolls = routeResult.data.routes.noTolls[0];
+          
+          result = {
+            origin: routeResult.data.origin,
+            destination: routeResult.data.destination,
+            best: standard || noTolls,
+            noTolls: noTolls || standard,
+            recommendation: routeResult.data.recommendation
+          };
         } catch (error) {
           console.error('Route planner error:', error);
-          return res.status(500).json({ success: false, error: error.message });
+          return res.json({ success: false, error: error.message });
         }
         break;
         
