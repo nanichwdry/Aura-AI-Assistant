@@ -161,6 +161,7 @@ const App: React.FC = () => {
   const [showNotepad, setShowNotepad] = useState(false);
   const [showThemes, setShowThemes] = useState(false);
   const [currentTheme, setCurrentTheme] = useState('dark');
+  const [appBackground, setAppBackground] = useState<string | null>(null);
   
   const getThemeColors = () => {
     const themes: Record<string, { bg: string; card: string; text: string; muted: string; border: string }> = {
@@ -760,7 +761,12 @@ const App: React.FC = () => {
     }]);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY as string });
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY as string;
+      if (!apiKey) {
+        throw new Error('Gemini API key not configured');
+      }
+      
+      const ai = new GoogleGenAI({ apiKey });
       const model = ai.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
       const result = await model.generateContent(userMessage);
       const response = result.response.text();
@@ -772,10 +778,11 @@ const App: React.FC = () => {
         timestamp: new Date() 
       }]);
     } catch (error) {
+      console.error('Chat error:', error);
       setMessages(prev => [...prev, { 
         id: (Date.now() + 1).toString(), 
         role: 'assistant', 
-        content: 'Sorry, I encountered an error. Please try again.', 
+        content: `Sorry, I encountered an error: ${error.message || 'Please try again.'}`, 
         timestamp: new Date() 
       }]);
     }
@@ -836,7 +843,7 @@ const App: React.FC = () => {
     }
   };
 
-  const bgColor = theme.bg;
+  const bgColor = appBackground ? '' : theme.bg;
   const cardBg = theme.card;
   const textColor = theme.text;
   const mutedText = theme.muted;
@@ -848,19 +855,30 @@ const App: React.FC = () => {
       <div className="fixed inset-0 h-screen w-screen overflow-hidden">
         {/* Background Layer - Always visible */}
         <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-          <div className={`absolute inset-0 ${bgColor}`} />
-          {[...Array(30)].map((_, i) => (
-            <div
-              key={i}
-              className="absolute w-1 bg-gradient-to-b from-cyan-400/40 via-cyan-400/20 to-transparent"
-              style={{
-                left: `${i * 3.33}%`,
-                height: `${40 + Math.random() * 80}px`,
-                animation: `drop ${3 + Math.random() * 4}s linear infinite`,
-                animationDelay: `${Math.random() * 5}s`
-              }}
-            />
-          ))}
+          {appBackground ? (
+            <div 
+              className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+              style={{ backgroundImage: `url(${appBackground})` }}
+            >
+              <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+            </div>
+          ) : (
+            <>
+              <div className={`absolute inset-0 ${bgColor}`} />
+              {[...Array(30)].map((_, i) => (
+                <div
+                  key={i}
+                  className="absolute w-1 bg-gradient-to-b from-cyan-400/40 via-cyan-400/20 to-transparent"
+                  style={{
+                    left: `${i * 3.33}%`,
+                    height: `${40 + Math.random() * 80}px`,
+                    animation: `drop ${3 + Math.random() * 4}s linear infinite`,
+                    animationDelay: `${Math.random() * 5}s`
+                  }}
+                />
+              ))}
+            </>
+          )}
         </div>
         <style>{`
           @keyframes drop {
@@ -1243,17 +1261,44 @@ const App: React.FC = () => {
                       <img 
                         src={toolResult.data.urls?.regular || toolResult.data.urls?.small} 
                         alt={toolResult.data.alt_description || 'Background image'}
-                        className="w-full h-64 object-cover rounded-xl mb-4"
+                        className="w-full h-96 object-cover rounded-xl mb-4"
                       />
-                      <div className="text-center">
-                        <p className="font-semibold mb-1">{toolResult.data.alt_description || 'Beautiful background'}</p>
+                      <div className="text-center space-y-3">
+                        <p className="font-semibold">{toolResult.data.alt_description || 'Beautiful background'}</p>
                         <p className={`text-sm ${mutedText}`}>Photo by {toolResult.data.user?.name || 'Unknown'}</p>
-                        <button 
-                          onClick={() => window.open(toolResult.data.links?.html, '_blank')}
-                          className="mt-3 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg text-sm hover:from-indigo-700 hover:to-purple-700 transition-all"
-                        >
-                          View on Unsplash
-                        </button>
+                        <div className="flex gap-2 justify-center">
+                          <button 
+                            onClick={() => setAppBackground(toolResult.data.urls?.regular)}
+                            className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg text-sm hover:from-indigo-700 hover:to-purple-700 transition-all"
+                          >
+                            Set as Background
+                          </button>
+                          <button 
+                            onClick={() => {
+                              const link = document.createElement('a');
+                              link.href = toolResult.data.urls?.regular;
+                              link.download = 'aura-background.jpg';
+                              link.click();
+                            }}
+                            className="px-4 py-2 border ${borderColor} rounded-lg text-sm hover:bg-slate-800/50 transition-all"
+                          >
+                            Download
+                          </button>
+                          <button 
+                            onClick={() => window.open(toolResult.data.links?.html, '_blank')}
+                            className="px-4 py-2 border ${borderColor} rounded-lg text-sm hover:bg-slate-800/50 transition-all"
+                          >
+                            View Source
+                          </button>
+                        </div>
+                        {appBackground && (
+                          <button 
+                            onClick={() => setAppBackground(null)}
+                            className="mt-2 px-4 py-2 text-sm text-red-400 hover:text-red-300 transition-colors"
+                          >
+                            Remove Background
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}

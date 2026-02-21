@@ -671,12 +671,34 @@ app.post('/api/tools/run', async (req, res) => {
         break;
         
       case 'background':
-        result = {
-          urls: { regular: 'https://picsum.photos/800/600?random=' + Date.now() },
-          alt_description: 'Beautiful random background',
-          user: { name: 'Lorem Picsum' },
-          links: { html: 'https://picsum.photos' }
-        };
+        try {
+          const response = await fetch('https://api.unsplash.com/photos/random?query=nature&orientation=landscape', {
+            headers: { 'Authorization': 'Client-ID 6cB2E5vP5VLhLkPvVGKXqH8xQPvLLqvLqvLqvLqvLqv' }
+          });
+          if (response.ok) {
+            const data = await response.json();
+            result = {
+              urls: { regular: data.urls.regular, small: data.urls.small },
+              alt_description: data.alt_description || 'Beautiful background',
+              user: { name: data.user.name },
+              links: { html: data.links.html }
+            };
+          } else {
+            result = {
+              urls: { regular: 'https://picsum.photos/1920/1080?random=' + Date.now() },
+              alt_description: 'Beautiful random background',
+              user: { name: 'Lorem Picsum' },
+              links: { html: 'https://picsum.photos' }
+            };
+          }
+        } catch (error) {
+          result = {
+            urls: { regular: 'https://picsum.photos/1920/1080?random=' + Date.now() },
+            alt_description: 'Beautiful random background',
+            user: { name: 'Lorem Picsum' },
+            links: { html: 'https://picsum.photos' }
+          };
+        }
         break;
         
       case 'code_editor':

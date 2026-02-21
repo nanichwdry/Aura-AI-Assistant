@@ -11,6 +11,7 @@ build/
 .env
 .env.local
 .env.production
+native-host/config.json
 
 # Database
 *.db
