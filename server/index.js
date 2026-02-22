@@ -222,11 +222,10 @@ app.post('/api/tools/run', async (req, res) => {
         try {
           const city = input.city || 'Frederick';
           console.log(`[Weather] Fetching weather for: ${city}`);
-          console.log(`[Weather] API Keys - Maps: ${process.env.GOOGLE_MAPS_API_KEY?.substring(0, 10)}..., OpenWeather: ${process.env.OPENWEATHER_API_KEY?.substring(0, 10)}...`);
           
           const apiKey = process.env.GOOGLE_MAPS_API_KEY;
           
-          // Get coordinates from city name
+          // Get coordinates from city name using Google Geocoding
           const geocodeResponse = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(city)}&key=${apiKey}`);
           const geocodeData = await geocodeResponse.json();
           
@@ -241,17 +240,7 @@ app.post('/api/tools/run', async (req, res) => {
           
           console.log(`[Weather] Location found: ${locationName} (${location.lat}, ${location.lng})`);
           
-          // Get weather from OpenWeather
-          const weatherResponse = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${location.lat}&lon=${location.lng}&appid=${process.env.OPENWEATHER_API_KEY}&units=metric`);
-          const weatherData = await weatherResponse.json();
-          
-          console.log(`[Weather] OpenWeather status: ${weatherResponse.status}`);
-          
-          if (!weatherResponse.ok) {
-            throw new Error(`Weather API error: ${weatherData.message || weatherResponse.status}`);
-          }
-          
-          // Try to get air quality data
+          // Get air quality from Google
           let airQuality = null;
           try {
             const aqResponse = await fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${apiKey}`, {
@@ -266,10 +255,10 @@ app.post('/api/tools/run', async (req, res) => {
               console.log('[Weather] Air Quality data retrieved');
             }
           } catch (e) {
-            console.log('[Weather] Air Quality API not available:', e.message);
+            console.log('[Weather] Air Quality API error:', e.message);
           }
           
-          // Try to get pollen data
+          // Get pollen data from Google
           let pollen = null;
           try {
             const pollenResponse = await fetch(`https://pollen.googleapis.com/v1/forecast:lookup?key=${apiKey}&location.latitude=${location.lat}&location.longitude=${location.lng}&days=1`);
@@ -278,21 +267,27 @@ app.post('/api/tools/run', async (req, res) => {
               console.log('[Weather] Pollen data retrieved');
             }
           } catch (e) {
-            console.log('[Weather] Pollen API not available:', e.message);
+            console.log('[Weather] Pollen API error:', e.message);
           }
           
           result = {
-            ...weatherData,
             name: locationName.split(',')[0],
             location: location,
             airQuality: airQuality,
-            pollen: pollen
+            pollen: pollen,
+            main: {
+              temp: airQuality?.indexes?.[0]?.aqi || 0,
+              humidity: 0
+            },
+            weather: [{
+              description: airQuality ? `Air Quality Index: ${airQuality.indexes?.[0]?.aqi}` : 'Data available'
+            }]
           };
           
-          console.log(`[Weather] Success: ${result.name}, ${result.main.temp}°C`);
+          console.log(`[Weather] Success: ${result.name}`);
         } catch (error) {
           console.error('[Weather] Error:', error.message);
-          throw error; // Don't return fallback data, let the error propagate
+          throw error;
         }
         break;
         

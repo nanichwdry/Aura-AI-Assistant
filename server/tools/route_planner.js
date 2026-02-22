@@ -1,3 +1,47 @@
+// Helper: Check Google API key
+function requireGoogleKey() {
+  const key = process.env.GOOGLE_MAPS_API_KEY;
+  if (!key) {
+    return { ok: false, error: "GOOGLE_MAPS_API_KEY missing on server. Set it in Render env vars." };
+  }
+  return { ok: true, key };
+}
+
+// Helper: Google error hints
+function googleHint(status, msg = "") {
+  if (status === "REQUEST_DENIED") {
+    return "Google denied the request. Common causes: billing not enabled, required API not enabled (Routes/Places/Geocoding), or API key restrictions (HTTP referrer/IP). Check Google Cloud Console.";
+  }
+  if (status === "OVER_QUERY_LIMIT") {
+    return "Quota exceeded. Check Google API quotas and billing.";
+  }
+  if (status === "ZERO_RESULTS") {
+    return "No results for that address. Try a more specific address (include city/state).";
+  }
+  if (status === "INVALID_REQUEST") {
+    return "Invalid request to Google (missing or malformed parameters).";
+  }
+  return msg ? `Google error: ${msg}` : "Unknown Google API error.";
+}
+
+function failGoogle(step, data) {
+  const status = data?.status || data?.error?.status || "UNKNOWN";
+  const message = data?.error_message || data?.error?.message || null;
+
+  console.log(`[route_planner] google error at ${step}:`, status, message || "");
+
+  return {
+    success: false,
+    error: `${step} failed: ${status}`,
+    details: {
+      step,
+      googleStatus: status,
+      googleErrorMessage: message,
+      hint: googleHint(status, message || "")
+    }
+  };
+}
+
 function safeDepartureTimeISO(inputDepartureTime) {
   const now = Date.now();
   const minFuture = new Date(now + 600_000); // now + 10 minutes for maximum safety
@@ -191,15 +235,10 @@ const ROUTES_URL = "https://routes.googleapis.com/directions/v2:computeRoutes";
 
 export async function planRoute({ origin, destination, preference = 'fastest', departureTime }) {
   try {
-    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-    
-    if (!apiKey) {
-      console.error('[route_planner] GOOGLE_MAPS_API_KEY not set');
-      return {
-        success: false,
-        error: 'Google Maps API key not configured'
-      };
-    }
+    // Validate API key first
+    const keyCheck = requireGoogleKey();
+    if (!keyCheck.ok) return { success: false, error: keyCheck.error };
+    const apiKey = keyCheck.key;
 
     console.log('[route_planner] Request:', { origin, destination, apiKey: apiKey.substring(0, 10) + '...' });
 
@@ -233,13 +272,9 @@ export async function planRoute({ origin, destination, preference = 'fastest', d
     console.log('[route_planner] Response status:', standardResponse.status);
     console.log('[route_planner] Response:', JSON.stringify(normalJson).substring(0, 500));
     
-    // Check for API error
+    // Check for API error with detailed handling
     if (normalJson.error) {
-      console.error('[route_planner] Routes API error:', normalJson.error);
-      return {
-        success: false,
-        error: `Routes API error ${normalJson.error.code}: ${normalJson.error.message}. Check: 1) Routes API enabled 2) Billing enabled 3) API key restrictions`
-      };
+      return failGoogle('routes', normalJson);
     }
 
     // Fetch no-tolls routes with alternatives
@@ -271,7 +306,7 @@ export async function planRoute({ origin, destination, preference = 'fastest', d
     const noTollsRoutes = (noTollJson?.routes || []).slice(0, 2).map(normalizeRoute);
 
     if (standardRoutes.length === 0 && noTollsRoutes.length === 0) {
-      return { success: false, error: "No route found" };
+      return { success: false, error: "No route found", details: { hint: "Check if addresses are valid and accessible by car" } };
     }
 
     const recommendation = buildRecommendation(standardRoutes, noTollsRoutes);
@@ -293,7 +328,8 @@ export async function planRoute({ origin, destination, preference = 'fastest', d
     console.error('[route_planner] Exception:', error);
     return {
       success: false,
-      error: error.message
+      error: error.message || 'Route planning failed',
+      details: { hint: 'Unexpected error. Check server logs.' }
     };
   }
 }
