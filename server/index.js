@@ -205,15 +205,11 @@ app.post('/api/tools/system', async (req, res) => {
 
 // Unified tool router endpoint
 app.post('/api/tools/run', async (req, res) => {
-  console.log(`[API] POST /api/tools/run - Tool: ${req.body.tool}`);
-  
   try {
-    const { tool, input = {} } = req.body;
-    
-    if (!tool) {
-      console.log(`[API] Error: Missing tool parameter`);
-      return res.status(400).json({ success: false, error: 'Tool parameter is required' });
-    }
+    const { tool, input } = req.body || {};
+    if (!tool) return res.status(400).json({ success: false, error: 'Missing tool name' });
+
+    console.log(`[API] POST /api/tools/run - Tool: ${tool}`);
     
     let result;
     
@@ -785,29 +781,24 @@ app.post('/api/tools/run', async (req, res) => {
           return res.status(400).json({ success: false, error: 'Origin and destination are required' });
         }
         
-        try {
-          const { planRoute } = await import('./tools/route_planner.js');
-          const routeResult = await planRoute({ origin, destination, preference });
-          
-          if (!routeResult.success) {
-            return res.json({ success: false, error: routeResult.error });
-          }
-          
-          // Format for easier consumption
-          const standard = routeResult.data.routes.standard[0];
-          const noTolls = routeResult.data.routes.noTolls[0];
-          
-          result = {
-            origin: routeResult.data.origin,
-            destination: routeResult.data.destination,
-            best: standard || noTolls,
-            noTolls: noTolls || standard,
-            recommendation: routeResult.data.recommendation
-          };
-        } catch (error) {
-          console.error('Route planner error:', error);
-          return res.json({ success: false, error: error.message });
+        const { planRoute } = await import('./tools/route_planner.js');
+        const routeResult = await planRoute({ origin, destination, preference });
+        
+        if (!routeResult.success) {
+          return res.status(200).json(routeResult);
         }
+        
+        // Format for easier consumption
+        const standard = routeResult.data.routes.standard[0];
+        const noTolls = routeResult.data.routes.noTolls[0];
+        
+        result = {
+          origin: routeResult.data.origin,
+          destination: routeResult.data.destination,
+          best: standard || noTolls,
+          noTolls: noTolls || standard,
+          recommendation: routeResult.data.recommendation
+        };
         break;
         
       case 'vscode_help':
@@ -844,11 +835,11 @@ app.post('/api/tools/run', async (req, res) => {
     }
     
     console.log(`[API] Success: Tool ${tool} executed successfully`);
-    res.json({ success: true, data: result });
+    return res.status(200).json({ success: true, data: result });
     
   } catch (error) {
     console.error(`[API] Error in /api/tools/run:`, error);
-    res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: error.message || 'Server error', details: { tool } });
   }
 });
 

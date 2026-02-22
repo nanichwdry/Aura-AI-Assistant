@@ -225,14 +225,22 @@ export async function planRoute({ origin, destination, preference = 'fastest', d
       body: JSON.stringify(standardBody),
     });
 
-    const normalJson = await standardResponse.json();
+    const normalParsed = await fetchJsonSafe(standardResponse);
+    if (!normalParsed.ok) {
+      return {
+        success: false,
+        error: "routes failed: non-json response",
+        details: { httpStatus: standardResponse.status, bodyPreview: normalParsed.text.slice(0, 200) }
+      };
+    }
+    const normalJson = normalParsed.json;
     
     console.log('[route_planner] Response status:', standardResponse.status);
     console.log('[route_planner] Response:', JSON.stringify(normalJson).substring(0, 500));
     
     // Check for API error with detailed handling
-    if (normalJson.error) {
-      return failGoogle('routes', normalJson);
+    if (!standardResponse.ok || normalJson.error) {
+      return failGoogle("routes", normalJson, standardResponse.status);
     }
 
     // Fetch no-tolls routes with alternatives
@@ -252,11 +260,19 @@ export async function planRoute({ origin, destination, preference = 'fastest', d
       body: JSON.stringify(noTollsBody),
     });
 
-    const noTollJson = await noTollsResponse.json();
+    const noTollParsed = await fetchJsonSafe(noTollsResponse);
+    if (!noTollParsed.ok) {
+      return {
+        success: false,
+        error: "routes_no_tolls failed: non-json response",
+        details: { httpStatus: noTollsResponse.status, bodyPreview: noTollParsed.text.slice(0, 200) }
+      };
+    }
+    const noTollJson = noTollParsed.json;
     
     // Check for API error
-    if (noTollJson.error) {
-      console.error('[route_planner] Routes API error (no tolls):', noTollJson.error);
+    if (!noTollsResponse.ok || noTollJson.error) {
+      return failGoogle("routes_no_tolls", noTollJson, noTollsResponse.status);
     }
 
     // Normalize top 2 routes from each
