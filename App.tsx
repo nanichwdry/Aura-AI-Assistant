@@ -604,6 +604,10 @@ const App: React.FC = () => {
         })
       });
       
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status} ${response.statusText}`);
+      }
+      
       const result = await response.json();
       
       if (!result.success) {
