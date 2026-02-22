@@ -1,46 +1,4 @@
-// Helper: Check Google API key
-function requireGoogleKey() {
-  const key = process.env.GOOGLE_MAPS_API_KEY;
-  if (!key) {
-    return { ok: false, error: "GOOGLE_MAPS_API_KEY missing on server. Set it in Render env vars." };
-  }
-  return { ok: true, key };
-}
-
-// Helper: Google error hints
-function googleHint(status, msg = "") {
-  if (status === "REQUEST_DENIED") {
-    return "Google denied the request. Common causes: billing not enabled, required API not enabled (Routes/Places/Geocoding), or API key restrictions (HTTP referrer/IP). Check Google Cloud Console.";
-  }
-  if (status === "OVER_QUERY_LIMIT") {
-    return "Quota exceeded. Check Google API quotas and billing.";
-  }
-  if (status === "ZERO_RESULTS") {
-    return "No results for that address. Try a more specific address (include city/state).";
-  }
-  if (status === "INVALID_REQUEST") {
-    return "Invalid request to Google (missing or malformed parameters).";
-  }
-  return msg ? `Google error: ${msg}` : "Unknown Google API error.";
-}
-
-function failGoogle(step, data) {
-  const status = data?.status || data?.error?.status || "UNKNOWN";
-  const message = data?.error_message || data?.error?.message || null;
-
-  console.log(`[route_planner] google error at ${step}:`, status, message || "");
-
-  return {
-    success: false,
-    error: `${step} failed: ${status}`,
-    details: {
-      step,
-      googleStatus: status,
-      googleErrorMessage: message,
-      hint: googleHint(status, message || "")
-    }
-  };
-}
+import { requireGoogleKey, geocodeAddress, fetchJsonSafe, failGoogle } from "./_google_helpers.js";
 
 function safeDepartureTimeISO(inputDepartureTime) {
   const now = Date.now();

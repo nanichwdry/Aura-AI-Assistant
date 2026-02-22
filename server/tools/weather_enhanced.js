@@ -1,73 +1,61 @@
-const GOOGLE_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
-
-async function getCoordinates(city) {
-  const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(city)}&key=${GOOGLE_API_KEY}`);
-  const data = await res.json();
-  if (data.results?.[0]) {
-    return data.results[0].geometry.location;
-  }
-  return null;
-}
+import { requireGoogleKey, geocodeAddress, fetchJsonSafe, failGoogle } from "./_google_helpers.js";
 
 export async function weather_enhanced(input) {
   try {
-    const city = input.city || 'Frederick';
-    const coords = await getCoordinates(city);
-    
-    if (!coords) {
-      return { success: false, error: 'City not found' };
-    }
+    const city = input?.city || "Frederick";
 
-    const [weatherRes, airQualityRes, pollenRes] = await Promise.all([
-      fetch(`https://weather.googleapis.com/v1/currentConditions:lookup?key=${GOOGLE_API_KEY}&location.latitude=${coords.lat}&location.longitude=${coords.lng}&languageCode=en`),
-      fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${GOOGLE_API_KEY}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ location: { latitude: coords.lat, longitude: coords.lng } })
+    const keyCheck = requireGoogleKey();
+    if (!keyCheck.ok) return { success:false, error:keyCheck.error };
+    const apiKey = keyCheck.key;
+
+    const geo = await geocodeAddress(city, apiKey);
+    if (!geo.success) return geo;
+
+    const { lat, lng } = geo.location;
+
+    // Use OpenWeather as fallback since Google Weather API requires special access
+    const weatherRes = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=${process.env.OPENWEATHER_API_KEY}&units=metric`);
+    const w = await fetchJsonSafe(weatherRes);
+    if (!w.ok) return { success:false, error:"Weather API failed: non-json response", details:{ httpStatus: weatherRes.status } };
+    if (!weatherRes.ok) return { success:false, error:"Weather API failed", details:{ httpStatus: weatherRes.status, data: w.json } };
+
+    const [airRes, pollenRes] = await Promise.all([
+      fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${apiKey}`, {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ location:{ latitude: lat, longitude: lng } })
       }),
-      fetch(`https://pollen.googleapis.com/v1/forecast:lookup?key=${GOOGLE_API_KEY}&location.latitude=${coords.lat}&location.longitude=${coords.lng}&days=1`)
+      fetch(`https://pollen.googleapis.com/v1/forecast:lookup?key=${apiKey}&location.latitude=${lat}&location.longitude=${lng}&days=1`)
     ]);
 
-    const weather = await weatherRes.json();
-    const airQuality = await airQualityRes.json();
-    const pollen = await pollenRes.json();
+    const a = await fetchJsonSafe(airRes);
+    const p = await fetchJsonSafe(pollenRes);
+
+    const weather = w.json;
+    const airQuality = airRes.ok && a.ok ? a.json : null;
+    const pollen = pollenRes.ok && p.ok ? p.json : null;
 
     return {
-      success: true,
-      data: {
-        city,
-        coordinates: coords,
-        weather: {
-          temp: weather.temperature?.value,
-          feelsLike: weather.apparentTemperature?.value,
-          humidity: weather.humidity?.value,
-          description: weather.weatherCode,
-          icon: weather.weatherCode
+      success:true,
+      data:{
+        name: geo.formattedAddress.split(',')[0],
+        main: {
+          temp: weather.main?.temp ?? 0,
+          feels_like: weather.main?.feels_like ?? 0,
+          humidity: weather.main?.humidity ?? 0
         },
-        airQuality: {
-          aqi: airQuality.indexes?.[0]?.aqi,
-          category: airQuality.indexes?.[0]?.category,
-          dominantPollutant: airQuality.indexes?.[0]?.dominantPollutant
-        },
-        pollen: {
-          tree: pollen.dailyInfo?.[0]?.pollenTypeInfo?.find(p => p.code === 'TREE')?.indexInfo?.category,
-          grass: pollen.dailyInfo?.[0]?.pollenTypeInfo?.find(p => p.code === 'GRASS')?.indexInfo?.category,
-          weed: pollen.dailyInfo?.[0]?.pollenTypeInfo?.find(p => p.code === 'WEED')?.indexInfo?.category
-        }
+        weather: weather.weather || [{ description: 'N/A' }],
+        wind: { speed: weather.wind?.speed ?? 0 },
+        airQuality: airQuality ? {
+          indexes: airQuality.indexes || [],
+          pollutants: airQuality.pollutants || []
+        } : null,
+        pollen: pollen ? {
+          dailyInfo: pollen.dailyInfo || []
+        } : null
       }
     };
-  } catch (error) {
-    return { success: false, error: error.message };
+  } catch (e) {
+    console.log("[weather_enhanced] unexpected error:", e?.message || e);
+    return { success:false, error: e?.message || "weather_enhanced failed" };
   }
 }
-
-export const weather_enhanced_schema = {
-  name: 'weather_enhanced',
-  description: 'Get weather, air quality, and pollen data for any city',
-  parameters: {
-    type: 'object',
-    properties: {
-      city: { type: 'string', description: 'City name', default: 'Frederick' }
-    }
-  }
-};
