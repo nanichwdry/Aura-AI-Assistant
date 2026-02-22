@@ -221,24 +221,37 @@ app.post('/api/tools/run', async (req, res) => {
       case 'weather':
         try {
           const city = input.city || 'Frederick';
+          console.log(`[Weather] Fetching weather for: ${city}`);
+          console.log(`[Weather] API Keys - Maps: ${process.env.GOOGLE_MAPS_API_KEY?.substring(0, 10)}..., OpenWeather: ${process.env.OPENWEATHER_API_KEY?.substring(0, 10)}...`);
+          
           const apiKey = process.env.GOOGLE_MAPS_API_KEY;
           
           // Get coordinates from city name
           const geocodeResponse = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(city)}&key=${apiKey}`);
           const geocodeData = await geocodeResponse.json();
           
+          console.log(`[Weather] Geocode status: ${geocodeData.status}`);
+          
           if (!geocodeData.results?.[0]) {
-            throw new Error('Location not found');
+            throw new Error(`Location not found: ${geocodeData.status}`);
           }
           
           const location = geocodeData.results[0].geometry.location;
           const locationName = geocodeData.results[0].formatted_address;
           
-          // Get weather from OpenWeather as base
+          console.log(`[Weather] Location found: ${locationName} (${location.lat}, ${location.lng})`);
+          
+          // Get weather from OpenWeather
           const weatherResponse = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${location.lat}&lon=${location.lng}&appid=${process.env.OPENWEATHER_API_KEY}&units=metric`);
           const weatherData = await weatherResponse.json();
           
-          // Try to get air quality data from Google
+          console.log(`[Weather] OpenWeather status: ${weatherResponse.status}`);
+          
+          if (!weatherResponse.ok) {
+            throw new Error(`Weather API error: ${weatherData.message || weatherResponse.status}`);
+          }
+          
+          // Try to get air quality data
           let airQuality = null;
           try {
             const aqResponse = await fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${apiKey}`, {
@@ -250,20 +263,22 @@ app.post('/api/tools/run', async (req, res) => {
             });
             if (aqResponse.ok) {
               airQuality = await aqResponse.json();
+              console.log('[Weather] Air Quality data retrieved');
             }
           } catch (e) {
-            console.log('Air Quality API not available');
+            console.log('[Weather] Air Quality API not available:', e.message);
           }
           
-          // Try to get pollen data from Google
+          // Try to get pollen data
           let pollen = null;
           try {
             const pollenResponse = await fetch(`https://pollen.googleapis.com/v1/forecast:lookup?key=${apiKey}&location.latitude=${location.lat}&location.longitude=${location.lng}&days=1`);
             if (pollenResponse.ok) {
               pollen = await pollenResponse.json();
+              console.log('[Weather] Pollen data retrieved');
             }
           } catch (e) {
-            console.log('Pollen API not available');
+            console.log('[Weather] Pollen API not available:', e.message);
           }
           
           result = {
@@ -273,15 +288,11 @@ app.post('/api/tools/run', async (req, res) => {
             airQuality: airQuality,
             pollen: pollen
           };
+          
+          console.log(`[Weather] Success: ${result.name}, ${result.main.temp}°C`);
         } catch (error) {
-          console.error('Weather API error:', error);
-          result = {
-            name: 'Frederick',
-            main: { temp: 0, feels_like: 0, humidity: 0 },
-            weather: [{ description: 'Weather service unavailable' }],
-            wind: { speed: 0 },
-            error: error.message
-          };
+          console.error('[Weather] Error:', error.message);
+          throw error; // Don't return fallback data, let the error propagate
         }
         break;
         
