@@ -605,6 +605,9 @@ const App: React.FC = () => {
       });
       
       if (!response.ok) {
+        if (response.status === 502) {
+          throw new Error('Server is restarting or updating. Please try again in a moment.');
+        }
         throw new Error(`Server error: ${response.status} ${response.statusText}`);
       }
       
