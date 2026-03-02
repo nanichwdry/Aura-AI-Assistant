@@ -921,7 +921,7 @@ const App: React.FC = () => {
 
             {/* Hero Area - Transitions between full and compact */}
             <div className={`shrink-0 transition-all duration-500 ${messages.length === 0 ? 'h-64' : 'h-20'} flex items-center justify-center`}>
-              <div className="flex items-center gap-6">
+              <div className="flex flex-col items-center justify-center gap-6">
                 <motion.div 
                   animate={{ 
                     scale: messages.length === 0 ? 1 : 0.5,
@@ -949,6 +949,7 @@ const App: React.FC = () => {
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
+                    className="text-center"
                   >
                     <h2 className="text-3xl font-bold mb-2 bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
                       Hi, I'm Aura

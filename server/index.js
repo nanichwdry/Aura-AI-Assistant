@@ -220,6 +220,7 @@ app.post('/api/tools/run', async (req, res) => {
           console.log(`[Weather] Fetching weather for: ${city}`);
           
           const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+          const openWeatherKey = process.env.OPENWEATHER_API_KEY;
           
           // Get coordinates from city name using Google Geocoding
           const geocodeResponse = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(city)}&key=${apiKey}`);
@@ -235,6 +236,16 @@ app.post('/api/tools/run', async (req, res) => {
           const locationName = geocodeData.results[0].formatted_address;
           
           console.log(`[Weather] Location found: ${locationName} (${location.lat}, ${location.lng})`);
+          
+          // Get weather from OpenWeather
+          const weatherResponse = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${location.lat}&lon=${location.lng}&appid=${openWeatherKey}&units=metric`);
+          const weatherData = await weatherResponse.json();
+          
+          if (!weatherResponse.ok) {
+            throw new Error(`Weather API error: ${weatherData.message || weatherResponse.status}`);
+          }
+          
+          console.log('[Weather] Weather data retrieved');
           
           // Get air quality from Google
           let airQuality = null;
@@ -268,16 +279,20 @@ app.post('/api/tools/run', async (req, res) => {
           
           result = {
             name: locationName.split(',')[0],
-            location: location,
-            airQuality: airQuality,
-            pollen: pollen,
             main: {
-              temp: airQuality?.indexes?.[0]?.aqi || 0,
-              humidity: 0
+              temp: weatherData.main?.temp || 0,
+              feels_like: weatherData.main?.feels_like || 0,
+              humidity: weatherData.main?.humidity || 0
             },
-            weather: [{
-              description: airQuality ? `Air Quality Index: ${airQuality.indexes?.[0]?.aqi}` : 'Data available'
-            }]
+            weather: weatherData.weather || [{ description: 'N/A' }],
+            wind: { speed: weatherData.wind?.speed || 0 },
+            airQuality: airQuality ? {
+              indexes: airQuality.indexes || [],
+              pollutants: airQuality.pollutants || []
+            } : null,
+            pollen: pollen ? {
+              dailyInfo: pollen.dailyInfo || []
+            } : null
           };
           
           console.log(`[Weather] Success: ${result.name}`);
