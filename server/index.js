@@ -114,6 +114,8 @@ db.exec(`
 
 setupPairingRoutes(app, db);
 setupPcControlRoutes(app);
+
+// Mount routes AFTER CORS middleware
 app.use('/api/code', codeRoutes);
 app.use('/api/sketch', sketchRoutes);
 app.use('/api/news', newsRoutes);
