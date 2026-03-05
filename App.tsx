@@ -923,7 +923,7 @@ const App: React.FC = () => {
             </div>
 
             {/* Hero Area - Transitions between full and compact */}
-            <div className={`shrink-0 transition-all duration-500 ${messages.length === 0 ? 'h-64' : 'h-20'} flex items-center justify-center`}>
+            <div className={`shrink-0 transition-all duration-500 ${messages.length === 0 ? 'h-64' : 'h-20'} flex items-center justify-center mt-64`}>
               <div className="flex flex-col items-center justify-center gap-6">
                 <motion.div 
                   animate={{ 
