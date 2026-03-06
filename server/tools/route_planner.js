@@ -203,10 +203,43 @@ export async function planRoute({ origin, destination, preference = 'fastest', d
     const departureTimeISO = safeDepartureTimeISO(departureTime);
     console.log('[route_planner] using routes v2 computeRoutes', departureTimeISO);
 
+    // Geocode addresses first for better accuracy
+    let originAddress = origin;
+    let destinationAddress = destination;
+    
+    // If input doesn't contain country, try to geocode it
+    if (!origin.toLowerCase().includes('india') && !origin.toLowerCase().includes('usa')) {
+      try {
+        const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(origin)}&key=${apiKey}`;
+        const geocodeRes = await fetch(geocodeUrl);
+        const geocodeData = await geocodeRes.json();
+        if (geocodeData.status === 'OK' && geocodeData.results[0]) {
+          originAddress = geocodeData.results[0].formatted_address;
+          console.log('[route_planner] Geocoded origin:', originAddress);
+        }
+      } catch (e) {
+        console.log('[route_planner] Geocoding origin failed, using original:', e.message);
+      }
+    }
+    
+    if (!destination.toLowerCase().includes('india') && !destination.toLowerCase().includes('usa')) {
+      try {
+        const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(destination)}&key=${apiKey}`;
+        const geocodeRes = await fetch(geocodeUrl);
+        const geocodeData = await geocodeRes.json();
+        if (geocodeData.status === 'OK' && geocodeData.results[0]) {
+          destinationAddress = geocodeData.results[0].formatted_address;
+          console.log('[route_planner] Geocoded destination:', destinationAddress);
+        }
+      } catch (e) {
+        console.log('[route_planner] Geocoding destination failed, using original:', e.message);
+      }
+    }
+
     // Fetch standard routes with alternatives
     const standardBody = {
-      origin: { address: origin },
-      destination: { address: destination },
+      origin: { address: originAddress },
+      destination: { address: destinationAddress },
       travelMode: "DRIVE",
       routingPreference: "TRAFFIC_AWARE",
       computeAlternativeRoutes: true,
