@@ -193,7 +193,7 @@ export function AuraPlacesFinder({ onClose }: Props) {
                 height="100%"
                 style={{ border: 0 }}
                 loading="lazy"
-                src={`https://www.google.com/maps/embed/v1/place?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&q=place_id:${selectedPlace.place_id}&zoom=15`}
+                src={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedPlace.name)}&query_place_id=${selectedPlace.place_id}`}
               />
             ) : places.length > 0 ? (
               <div className="flex items-center justify-center h-full text-gray-400">

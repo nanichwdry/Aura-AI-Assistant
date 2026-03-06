@@ -274,12 +274,17 @@ app.post('/api/tools/run', async (req, res) => {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  location: { latitude: location.lat, longitude: location.lng }
+                  location: { latitude: location.lat, longitude: location.lng },
+                  extraComputations: ['POLLUTANT_CONCENTRATION', 'DOMINANT_POLLUTANT_CONCENTRATION', 'POLLUTANT_ADDITIONAL_INFO']
                 })
               });
               if (aqResponse.ok) {
-                airQuality = await aqResponse.json();
-                console.log('[Weather] Air Quality data retrieved');
+                const aqData = await aqResponse.json();
+                airQuality = aqData;
+                console.log('[Weather] Air Quality data retrieved:', JSON.stringify(aqData).substring(0, 200));
+              } else {
+                const errorText = await aqResponse.text();
+                console.log('[Weather] Air Quality API error:', aqResponse.status, errorText.substring(0, 200));
               }
             } catch (e) {
               console.log('[Weather] Air Quality API error:', e.message);
@@ -290,10 +295,14 @@ app.post('/api/tools/run', async (req, res) => {
           let pollen = null;
           if (googleApiKey) {
             try {
-              const pollenResponse = await fetch(`https://pollen.googleapis.com/v1/forecast:lookup?key=${googleApiKey}&location.latitude=${location.lat}&location.longitude=${location.lng}&days=1`);
+              const pollenResponse = await fetch(`https://pollen.googleapis.com/v1/forecast:lookup?key=${googleApiKey}&location.latitude=${location.lat}&location.longitude=${location.lng}&days=1&languageCode=en`);
               if (pollenResponse.ok) {
-                pollen = await pollenResponse.json();
-                console.log('[Weather] Pollen data retrieved');
+                const pollenData = await pollenResponse.json();
+                pollen = pollenData;
+                console.log('[Weather] Pollen data retrieved:', JSON.stringify(pollenData).substring(0, 200));
+              } else {
+                const errorText = await pollenResponse.text();
+                console.log('[Weather] Pollen API error:', pollenResponse.status, errorText.substring(0, 200));
               }
             } catch (e) {
               console.log('[Weather] Pollen API error:', e.message);

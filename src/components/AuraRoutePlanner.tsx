@@ -353,7 +353,7 @@ export function AuraRoutePlanner({ onClose }: Props) {
                     height="300"
                     style={{ border: 0 }}
                     loading="lazy"
-                    src={`https://www.google.com/maps/embed/v1/directions?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&mode=driving`}
+                    src={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&travelmode=driving`}
                   />
                 </div>
               )}
