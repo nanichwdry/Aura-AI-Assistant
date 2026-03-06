@@ -22,4 +22,24 @@ router.get('/autocomplete', async (req, res) => {
   }
 });
 
+router.get('/search', async (req, res) => {
+  try {
+    const { query, location } = req.query;
+    
+    if (!query) {
+      return res.json({ results: [] });
+    }
+
+    const response = await fetch(
+      `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&location=${encodeURIComponent(location || '')}&key=${process.env.GOOGLE_MAPS_API_KEY}`
+    );
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Places search error:', error);
+    res.json({ results: [] });
+  }
+});
+
 export default router;

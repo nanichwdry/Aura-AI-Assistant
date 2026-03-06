@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Navigation, Clock, DollarSign, MapPin } from 'lucide-react';
+import { X, Navigation, Clock, DollarSign, MapPin, Map } from 'lucide-react';
 
 interface Props {
   onClose: () => void;
@@ -41,8 +41,10 @@ export function AuraRoutePlanner({ onClose }: Props) {
   const [destinationSuggestions, setDestinationSuggestions] = useState<any[]>([]);
   const [showOriginSuggestions, setShowOriginSuggestions] = useState(false);
   const [showDestinationSuggestions, setShowDestinationSuggestions] = useState(false);
+  const [showMap, setShowMap] = useState(false);
   const originRef = useRef<HTMLInputElement>(null);
   const destinationRef = useRef<HTMLInputElement>(null);
+  const mapRef = useRef<HTMLIFrameElement>(null);
 
   const formatDuration = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
@@ -158,6 +160,7 @@ export function AuraRoutePlanner({ onClose }: Props) {
       }
 
       setResult(data.data);
+      setShowMap(true);
     } catch (err: any) {
       console.error('Route error:', err);
       setError(err?.message || 'Network error. Please try again.');
@@ -329,6 +332,41 @@ export function AuraRoutePlanner({ onClose }: Props) {
           
           {result && result.best && result.noTolls && (
             <div className="space-y-4">
+              {/* Google Maps Embed */}
+              {showMap && (
+                <div className="rounded-xl overflow-hidden border border-slate-700/50 bg-slate-800/30">
+                  <div className="flex items-center justify-between p-3 bg-slate-800/50 border-b border-slate-700/50">
+                    <div className="flex items-center gap-2 text-sm text-gray-300">
+                      <Map className="w-4 h-4 text-blue-400" />
+                      <span>Route Map</span>
+                    </div>
+                    <button 
+                      onClick={() => setShowMap(false)}
+                      className="text-xs text-gray-400 hover:text-gray-300"
+                    >
+                      Hide Map
+                    </button>
+                  </div>
+                  <iframe
+                    ref={mapRef}
+                    width="100%"
+                    height="300"
+                    style={{ border: 0 }}
+                    loading="lazy"
+                    src={`https://www.google.com/maps/embed/v1/directions?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&mode=driving`}
+                  />
+                </div>
+              )}
+              
+              {!showMap && (
+                <button
+                  onClick={() => setShowMap(true)}
+                  className="w-full p-3 rounded-xl border border-slate-700/50 bg-slate-800/30 hover:bg-slate-800/50 transition-colors flex items-center justify-center gap-2 text-sm text-gray-300"
+                >
+                  <Map className="w-4 h-4" />
+                  Show Route on Map
+                </button>
+              )}
               {/* Traffic Status */}
               {result.trafficAware && (
                 <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/30">
