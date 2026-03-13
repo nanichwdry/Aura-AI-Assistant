@@ -17,6 +17,7 @@ import personalizationRoutes from './routes/personalization.js';
 import { runAuraCommand } from './aura/executor.js';
 
 import placesRoutes from './routes/places.js';
+import whatsappRoutes from './routes/whatsapp.js';
 
 const AURA_EXECUTOR_ENABLED = process.env.AURA_EXECUTOR === 'true';
 
@@ -122,6 +123,7 @@ app.use('/api/news', newsRoutes);
 app.use('/api/music', musicRoutes);
 app.use('/api/personalization', personalizationRoutes);
 app.use('/api/places', placesRoutes);
+app.use('/api/whatsapp', whatsappRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
