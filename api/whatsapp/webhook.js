@@ -94,12 +94,25 @@ async function processWhatsAppMessage(body) {
 
 async function generateAuraResponse(userMessage, userId) {
   try {
-    const { GoogleGenerativeAI } = await import('@google/genai');
-    const apiKey = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+    // Try @google/genai first (current package)
+    let GoogleGenerativeAI;
+    try {
+      const genaiModule = await import('@google/genai');
+      GoogleGenerativeAI = genaiModule.GoogleGenerativeAI;
+    } catch (e) {
+      // Fallback to @google/generative-ai
+      const genaiModule = await import('@google/generative-ai');
+      GoogleGenerativeAI = genaiModule.GoogleGenerativeAI;
+    }
+    
+    const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
     
     if (!apiKey) {
-      throw new Error('Gemini API key not configured');
+      console.error('[Aura] Missing Gemini API key');
+      return 'I am not configured correctly. Missing API key.';
     }
+    
+    console.log('[Aura] Initializing Gemini with key:', apiKey.substring(0, 10) + '...');
     
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
