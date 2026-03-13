@@ -29,15 +29,11 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       console.log('[Webhook] POST received:', JSON.stringify(req.body, null, 2));
       
-      // Respond immediately to Meta
-      res.status(200).json({ received: true });
+      // Process message BEFORE responding (Vercel limitation)
+      await processWhatsAppMessage(req.body);
       
-      // Process message asynchronously
-      processWhatsAppMessage(req.body).catch(err => {
-        console.error('[Webhook] Processing error:', err);
-      });
-      
-      return;
+      // Respond to Meta after processing
+      return res.status(200).json({ received: true });
     }
 
     res.setHeader('Allow', ['GET', 'POST']);
