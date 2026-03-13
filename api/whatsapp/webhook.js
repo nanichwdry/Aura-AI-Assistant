@@ -3,9 +3,9 @@
  * Proxies to Render backend where Aura logic lives
  */
 
-export default async function handler(req, res) {
-  const RENDER_BACKEND = 'https://aura-ai-assistant.onrender.com';
-  
+const RENDER_BACKEND = 'https://aura-ai-assistant.onrender.com';
+
+module.exports = async function handler(req, res) {
   try {
     if (req.method === 'GET') {
       // Webhook verification - handle locally for speed
@@ -57,4 +57,4 @@ export default async function handler(req, res) {
     // Always return 200 to Meta to avoid retries
     return res.status(200).json({ received: true });
   }
-}
+};
