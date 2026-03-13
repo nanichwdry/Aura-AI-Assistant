@@ -95,7 +95,13 @@ async function processWhatsAppMessage(body) {
 async function generateAuraResponse(userMessage, userId) {
   try {
     const { GoogleGenerativeAI } = await import('@google/genai');
-    const genAI = new GoogleGenerativeAI(process.env.VITE_GEMINI_API_KEY);
+    const apiKey = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+    
+    if (!apiKey) {
+      throw new Error('Gemini API key not configured');
+    }
+    
+    const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
     
     const prompt = `You are Aura, a helpful AI assistant. Respond concisely (max 1000 characters) to: ${userMessage}`;
@@ -113,7 +119,9 @@ async function generateAuraResponse(userMessage, userId) {
     return truncated;
   } catch (error) {
     console.error('[Aura] Generation error:', error);
-    return 'I apologize, but I encountered an error processing your request. Please try again.';
+    
+    // Fallback: Simple response without AI
+    return `Hello! I'm Aura, your AI assistant. You said: "${userMessage}". I'm currently experiencing technical difficulties with my AI engine, but I'm here to help!`;
   }
 }
 
