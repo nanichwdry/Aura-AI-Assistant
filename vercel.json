@@ -1,9 +1,3 @@
 {
-  "version": 2,
-  "rewrites": [
-    {
-      "source": "/api/whatsapp/webhook",
-      "destination": "/api/whatsapp/webhook.cjs"
-    }
-  ]
+  "version": 2
 }
