@@ -94,18 +94,12 @@ async function processWhatsAppMessage(body) {
 
 async function generateAuraResponse(userMessage, userId) {
   try {
-    // Try @google/genai first (current package)
-    let GoogleGenerativeAI;
-    try {
-      const genaiModule = await import('@google/genai');
-      GoogleGenerativeAI = genaiModule.GoogleGenerativeAI;
-    } catch (e) {
-      // Fallback to @google/generative-ai
-      const genaiModule = await import('@google/generative-ai');
-      GoogleGenerativeAI = genaiModule.GoogleGenerativeAI;
-    }
+    const { GoogleGenAI } = await import('@google/genai');
     
-    const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+    // Check for API key in priority order
+    const apiKey = process.env.GEMINI_API_KEY || 
+                   process.env.GOOGLE_API_KEY || 
+                   process.env.VITE_GEMINI_API_KEY;
     
     if (!apiKey) {
       console.error('[Aura] Missing Gemini API key');
@@ -114,18 +108,21 @@ async function generateAuraResponse(userMessage, userId) {
     
     console.log('[Aura] Initializing Gemini with key:', apiKey.substring(0, 10) + '...');
     
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+    const ai = new GoogleGenAI({ apiKey });
     
     const prompt = `You are Aura, a helpful AI assistant. Respond concisely (max 1000 characters) to: ${userMessage}`;
     
     console.log('[Aura] Generating response for:', userMessage);
     
-    const result = await model.generateContent(prompt);
-    const response = result.response.text();
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.0-flash-exp',
+      contents: prompt
+    });
+    
+    const text = response.text();
     
     // Truncate for WhatsApp
-    const truncated = response.length > 1000 ? response.substring(0, 997) + '...' : response;
+    const truncated = text.length > 1000 ? text.substring(0, 997) + '...' : text;
     
     console.log('[Aura] Generated response:', truncated);
     
