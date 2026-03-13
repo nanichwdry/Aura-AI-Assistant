@@ -13,12 +13,7 @@ module.exports = async function handler(req, res) {
       const token = req.query['hub.verify_token'];
       const challenge = req.query['hub.challenge'];
       
-      const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
-      
-      if (!verifyToken) {
-        console.error('[WhatsApp] WHATSAPP_VERIFY_TOKEN not configured');
-        return res.status(500).json({ error: 'Configuration error' });
-      }
+      const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN || 'aura_webhook_verify_2024';
       
       if (mode === 'subscribe' && token === verifyToken) {
         console.log('[WhatsApp] Webhook verified');
@@ -30,31 +25,45 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      // Proxy POST to Render backend
+      // Proxy POST to Render backend using https module
       console.log('[WhatsApp] Proxying to Render backend');
       
-      const response = await fetch(`${RENDER_BACKEND}/api/whatsapp/webhook`, {
+      const https = require('https');
+      const url = require('url');
+      
+      const parsedUrl = url.parse(`${RENDER_BACKEND}/api/whatsapp/webhook`);
+      const postData = JSON.stringify(req.body);
+      
+      const options = {
+        hostname: parsedUrl.hostname,
+        port: 443,
+        path: parsedUrl.path,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(req.body)
+          'Content-Length': Buffer.byteLength(postData)
+        }
+      };
+      
+      const proxyReq = https.request(options, (proxyRes) => {
+        console.log('[WhatsApp] Render responded:', proxyRes.statusCode);
       });
       
-      if (!response.ok) {
-        console.error('[WhatsApp] Render backend error:', response.status);
-        return res.status(200).json({ received: true }); // Still return 200 to Meta
-      }
+      proxyReq.on('error', (error) => {
+        console.error('[WhatsApp] Proxy error:', error);
+      });
       
-      console.log('[WhatsApp] Successfully proxied to Render');
+      proxyReq.write(postData);
+      proxyReq.end();
+      
+      // Respond immediately to Meta
       return res.status(200).json({ received: true });
     }
 
     res.setHeader('Allow', ['GET', 'POST']);
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (error) {
-    console.error('[WhatsApp] Proxy error:', error);
-    // Always return 200 to Meta to avoid retries
+    console.error('[WhatsApp] Error:', error);
     return res.status(200).json({ received: true });
   }
 };
