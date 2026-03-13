@@ -27,7 +27,19 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      console.log('[Webhook] POST received:', JSON.stringify(req.body, null, 2));
+      console.log('[Webhook] POST hit at', new Date().toISOString());
+      console.log('[Webhook] Raw body:', JSON.stringify(req.body, null, 2));
+
+      const message = req.body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+
+      if (!message) {
+        console.log('[Webhook] No message found in payload');
+        return res.status(200).json({ received: true, ignored: true });
+      }
+
+      console.log('[Webhook] Real sender:', message.from);
+      console.log('[Webhook] Message type:', message.type);
+      console.log('[Webhook] Message text:', message.text?.body);
       
       // Process message BEFORE responding (Vercel limitation)
       await processWhatsAppMessage(req.body);
