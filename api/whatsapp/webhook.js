@@ -4,14 +4,25 @@ module.exports = async function handler(req, res) {
       const mode = req.query['hub.mode'];
       const token = req.query['hub.verify_token'];
       const challenge = req.query['hub.challenge'];
+      
+      const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
+      
+      console.log('[Webhook] Verification attempt:', {
+        mode,
+        tokenReceived: token,
+        tokenExpected: verifyToken,
+        challenge
+      });
 
       if (
         mode === 'subscribe' &&
-        token === process.env.WHATSAPP_VERIFY_TOKEN
+        token === verifyToken
       ) {
+        console.log('[Webhook] Verification SUCCESS');
         return res.status(200).send(challenge);
       }
 
+      console.log('[Webhook] Verification FAILED');
       return res.status(403).send('Forbidden');
     }
 
