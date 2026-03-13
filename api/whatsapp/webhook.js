@@ -1,4 +1,4 @@
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
       const mode = req.query['hub.mode'];
@@ -39,4 +39,4 @@ module.exports = async function handler(req, res) {
       details: error?.message || 'Unknown error',
     });
   }
-};
+}
