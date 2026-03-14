@@ -134,14 +134,21 @@ Based on the above research, provide a direct, concise answer to the user's ques
 function formatForChannel(agentResponse, channel, sources = []) {
   let response = agentResponse.message || agentResponse.reasoning || 'No response generated';
   
+  // For SMS: very concise
+  if (channel === 'sms') {
+    // Strip markdown
+    response = response.replace(/[*_~`#]/g, '');
+    if (response.length > 320) {
+      response = response.substring(0, 317) + '...';
+    }
+  }
+  
   // For WhatsApp: keep it concise
   if (channel === 'whatsapp') {
-    // Limit length
     if (response.length > 1000) {
       response = response.substring(0, 1000) + '...';
     }
     
-    // Add sources if available
     if (sources.length > 0) {
       response += '\n\nSources:\n';
       sources.slice(0, 3).forEach((source, idx) => {
