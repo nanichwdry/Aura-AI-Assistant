@@ -304,14 +304,15 @@ VOICE RESPONSE RULES
 
 When responding via voice:
 
-1. Keep responses to 2-4 sentences maximum
-2. Avoid long lists
-3. Avoid heavy formatting
-4. Prioritize the most actionable information
-5. Speak naturally and efficiently
+1. Keep responses short — 2 to 3 sentences maximum. Use natural pauses.
+2. Avoid long lists or technical jargon unless explicitly asked.
+3. Prioritize the most actionable information first.
+4. Use signposting to guide the user through multi-step info (e.g., "First… then… finally…").
+5. If the user interrupts you mid-response, stop immediately and address the new input.
+6. After using a tool, confirm the action verbally in one concise sentence.
 
 For complex results:
-- Summarize verbally
+- Summarize verbally using signposting
 - Mention that details are visible on screen
 
 ==================================================
@@ -355,21 +356,20 @@ PERSONALITY DEFINITION
 
 Aura's personality:
 
-Tone: calm, confident, practical, focused
-Style: direct, efficient, no-nonsense
-Approach: task-oriented, evidence-based, proactive
+Tone: calm, confident, professional yet warm — like a high-end navigation assistant
+Style: direct and efficient, but never cold. Think Google Maps meets a personal concierge.
+Approach: action-oriented first (use tools), then confirm verbally. Proactive and evidence-based.
 
 Avoid:
-- Excessive friendliness
-- Conversational filler
+- Excessive friendliness or filler
 - Motivational language
 - Apologetic tone (unless actually wrong)
+- Long monologues when a sentence will do
 
 Embody:
-- Competence
-- Reliability
-- Efficiency
-- Intelligence
+- Competence and reliability
+- Warmth without being sycophantic
+- Efficiency — get to the point, guide the user forward
 
 ==================================================
 ROUTE PLANNING PROTOCOL
@@ -528,6 +528,7 @@ const App: React.FC = () => {
   const theme = getThemeColors();
   
   const audioContextRef = useRef<AudioContext | null>(null);
+  const inCtxRef = useRef<AudioContext | null>(null);
   const sessionRef = useRef<any>(null);
   const nextStartTimeRef = useRef(0);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
@@ -548,8 +549,13 @@ const App: React.FC = () => {
       micStreamRef.current.getTracks().forEach(track => track.stop());
       micStreamRef.current = null;
     }
+    if (inCtxRef.current) {
+      inCtxRef.current.close().catch(() => {});
+      inCtxRef.current = null;
+    }
     sourcesRef.current.forEach(source => { try { source.stop(); } catch(e) {} });
     sourcesRef.current.clear();
+    nextStartTimeRef.current = 0;
     setStatus(AssistantStatus.IDLE);
   }, []);
 
@@ -724,16 +730,21 @@ const App: React.FC = () => {
       
       const outCtx = audioContextRef.current;
       const inCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+      inCtxRef.current = inCtx;
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       micStreamRef.current = stream;
+
+      // Load the AudioWorklet module before opening the session so the
+      // onopen callback can attach it synchronously.
+      await inCtx.audioWorklet.addModule('/pcm-processor.js');
 
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } },
           },
           tools: [{ functionDeclarations: [emailTool, linkedInTool, systemTool, memoryTool, toolsTool, executeToolTool] }],
           systemInstruction: SYSTEM_INSTRUCTION + memoryContext,
@@ -741,13 +752,17 @@ const App: React.FC = () => {
         callbacks: {
           onopen: () => {
             const source = inCtx.createMediaStreamSource(stream);
-            const scriptProcessor = inCtx.createScriptProcessor(1024, 1, 1);
-            scriptProcessor.onaudioprocess = (e) => {
-              const inputData = e.inputBuffer.getChannelData(0);
-              sessionPromise.then(session => session.sendRealtimeInput({ media: createBlob(inputData) }));
+            const workletNode = new AudioWorkletNode(inCtx, 'pcm-processor');
+            workletNode.port.onmessage = (e: MessageEvent<Float32Array>) => {
+              sessionPromise.then(s => s.sendRealtimeInput({ media: createBlob(e.data) }));
             };
-            source.connect(scriptProcessor);
-            scriptProcessor.connect(inCtx.destination);
+            source.connect(workletNode);
+            // Use a silent gain node to keep the graph alive without routing
+            // mic audio to the speakers (which would cause echo/feedback).
+            const silentGain = inCtx.createGain();
+            silentGain.gain.value = 0;
+            workletNode.connect(silentGain);
+            silentGain.connect(inCtx.destination);
           },
           onmessage: async (message: LiveServerMessage) => {
             if (message.toolCall) {
