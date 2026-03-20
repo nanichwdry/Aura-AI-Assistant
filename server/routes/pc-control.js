@@ -54,7 +54,7 @@ export function setupPcControlRoutes(app) {
       const data = await response.json();
       return res.json(data);
     } catch (error) {
-      return res.status(500).json({ ok: false, error: error.message });
+      return res.status(503).json({ ok: false, error: 'Local agent is not running. Start it with: npm run local-agent' });
     }
   });
 
@@ -78,7 +78,7 @@ export function setupPcControlRoutes(app) {
         const data = await response.json();
         return res.json(data);
       } catch (error) {
-        return res.status(500).json({ ok: false, error: error.message });
+        return res.status(503).json({ ok: false, error: 'Local agent is not running. Start it with: npm run local-agent' });
       }
     }
 
@@ -108,8 +108,46 @@ export function setupPcControlRoutes(app) {
           const data = await response.json();
           return res.json(data);
         } catch (error) {
-          return res.status(500).json({ ok: false, error: error.message });
+          return res.status(503).json({ ok: false, error: 'Local agent is not running. Start it with: npm run local-agent' });
         }
+      }
+    }
+
+    // Generic "open / launch / start X" → open_app with X
+    const openAppPattern = /^(?:open|launch|start|run)\s+(.+)$/;
+    const openAppMatch = normalized.match(openAppPattern);
+    if (openAppMatch) {
+      const appName = openAppMatch[1].trim();
+      try {
+        const headers = { 'Content-Type': 'application/json', 'x-agent-token': AGENT_TOKEN };
+        const response = await fetch(AGENT_URL, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ tool_name: 'open_app', args: { app_id: appName } })
+        });
+        const data = await response.json();
+        return res.json(data);
+      } catch (error) {
+        return res.status(503).json({ ok: false, error: 'Local agent is not running. Start it with: npm run local-agent' });
+      }
+    }
+
+    // "search (for) files (named/called) X" → search_files
+    const searchPattern = /^(?:search|find|look for|locate)\s+(?:for\s+)?(?:files?\s+)?(?:named?|called|with name)?\s*(.+)$/;
+    const searchMatch = normalized.match(searchPattern);
+    if (searchMatch) {
+      const query = searchMatch[1].trim();
+      try {
+        const headers = { 'Content-Type': 'application/json', 'x-agent-token': AGENT_TOKEN };
+        const response = await fetch(AGENT_URL, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ tool_name: 'search_files', args: { query } })
+        });
+        const data = await response.json();
+        return res.json(data);
+      } catch (error) {
+        return res.status(503).json({ ok: false, error: 'Local agent is not running. Start it with: npm run local-agent' });
       }
     }
 

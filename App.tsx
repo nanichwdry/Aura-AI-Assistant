@@ -744,7 +744,7 @@ const App: React.FC = () => {
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } },
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
           },
           tools: [{ functionDeclarations: [emailTool, linkedInTool, systemTool, memoryTool, toolsTool, executeToolTool] }],
           systemInstruction: SYSTEM_INSTRUCTION + memoryContext,

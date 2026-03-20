@@ -76,10 +76,15 @@ function buildFlags(route) {
   }
 
   if (route.toll && route.toll.amount >= 10) {
+    const formatted = new Intl.NumberFormat('en', {
+      style: 'currency',
+      currency: route.toll.currency || 'USD',
+      maximumFractionDigits: 0,
+    }).format(route.toll.amount);
     flags.push({
       type: "HIGH_TOLL",
       severity: "info",
-      message: `High toll: $${route.toll.amount.toFixed(2)}`
+      message: `High toll: ${formatted}`
     });
   }
 

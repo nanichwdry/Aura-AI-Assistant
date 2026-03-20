@@ -316,22 +316,26 @@ app.post("/tool/run", async (req, res) => {
       // SAFE APP OPENING
       // -------------------------
       case "open_app": {
-        const appId = String(args?.app_id || "").toLowerCase();
+        const rawAppId = String(args?.app_id || "").trim();
+        const appId = rawAppId.toLowerCase();
         const spec = APPS[appId];
-        if (!spec) throw new Error("App not allowed");
 
-        if (spec.type === "exe") {
-          // Use cmd /c start for reliable GUI app launching
-          openWithShellStart(spec.value);
-          result = `Opened ${appId}`;
-        } else if (spec.type === "exe_path_candidates") {
-          const exe = findFirstExisting(spec.value);
-          if (!exe) throw new Error(`Executable not found for ${appId}`);
-          openWithShellStart(exe);
-          result = `Opened ${appId}`;
+        if (spec) {
+          if (spec.type === "exe") {
+            openWithShellStart(spec.value);
+          } else if (spec.type === "exe_path_candidates") {
+            const exe = findFirstExisting(spec.value);
+            if (!exe) throw new Error(`Executable not found for ${appId}`);
+            openWithShellStart(exe);
+          } else {
+            throw new Error("Invalid app spec");
+          }
         } else {
-          throw new Error("Invalid app spec");
+          // Fallback: let Windows resolve the app name via the shell
+          // (covers Store apps, Start-menu shortcuts, anything in PATH)
+          openWithShellStart(rawAppId);
         }
+        result = `Opened ${rawAppId}`;
         break;
       }
 
