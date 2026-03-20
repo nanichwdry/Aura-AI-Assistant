@@ -19,7 +19,6 @@ import { AuraGamesDrawer } from './src/components/AuraGamesDrawer';
 import { AuraRoutePlanner } from './src/components/AuraRoutePlanner';
 import { AuraThemeManager } from './src/components/AuraThemeManager';
 import { pcControlNL, pcControlExecute } from './src/services/pcControl';
-import { API_BASE_URL } from './src/config/api';
 
 const emailTool: FunctionDeclaration = {
   name: 'manage_emails',
@@ -429,6 +428,37 @@ Respond with clarity.
 
 Start executing now.`;
 
+function weatherEmoji(iconCode: string): string {
+  if (!iconCode) return '🌡️';
+  const c = iconCode.slice(0, 2);
+  const isNight = iconCode.endsWith('n');
+  const map: Record<string, string> = {
+    '01': isNight ? '🌙' : '☀️',
+    '02': isNight ? '🌙' : '🌤️',
+    '03': '⛅',
+    '04': '☁️',
+    '09': '🌧️',
+    '10': isNight ? '🌧️' : '🌦️',
+    '11': '⛈️',
+    '13': '🌨️',
+    '50': '🌫️',
+  };
+  return map[c] ?? '🌡️';
+}
+
+function windDirection(deg: number): string {
+  const dirs = ['N','NE','E','SE','S','SW','W','NW'];
+  return dirs[Math.round(deg / 45) % 8];
+}
+
+function fmtTime(unix: number, offsetSec = 0): string {
+  return new Date((unix + offsetSec) * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'UTC' });
+}
+
+function fmtDay(unix: number): string {
+  return new Date(unix * 1000).toLocaleDateString([], { weekday: 'short' });
+}
+
 const QUICK_ACTIONS = [
   { name: 'Weather', icon: Cloud, color: 'from-blue-500 to-cyan-500' },
   { name: 'News', icon: Newspaper, color: 'from-orange-500 to-red-500' },
@@ -565,7 +595,7 @@ const App: React.FC = () => {
     if (fc.name === 'save_memory') {
       const { key, value } = fc.args;
       try {
-        await fetch(`${API_BASE_URL}/api/memory`, {
+        await fetch('/api/memory', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ key, value })
@@ -637,7 +667,7 @@ const App: React.FC = () => {
           }
           response.result = `Document generated successfully in ${format.toUpperCase()} format. ${format === 'pdf' ? 'Print dialog opened.' : 'File downloaded.'}`;
         } else {
-          const res = await fetch(`${API_BASE_URL}/api/tools/run`, {
+          const res = await fetch('/api/tools/run', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tool, input: input || {} })
@@ -675,7 +705,7 @@ const App: React.FC = () => {
       }
     }
     else if (fc.name === 'manage_emails') {
-      const res = await fetch(`${API_BASE_URL}/api/tools/email`, {
+      const res = await fetch('/api/tools/email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(fc.args)
@@ -684,7 +714,7 @@ const App: React.FC = () => {
       response.result = data.error || `Found ${data.length} emails`;
     }
     else if (fc.name === 'check_linkedin') {
-      const res = await fetch(`${API_BASE_URL}/api/tools/linkedin`, {
+      const res = await fetch('/api/tools/linkedin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(fc.args)
@@ -713,7 +743,7 @@ const App: React.FC = () => {
       setStatus(AssistantStatus.LISTENING);
       const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY as string });
       
-      const memory = await fetch(`${API_BASE_URL}/api/memory`)
+      const memory = await fetch('/api/memory')
         .then(r => r.ok ? r.json() : {})
         .catch(e => {
           console.error('Memory fetch failed:', e);
@@ -924,7 +954,7 @@ const App: React.FC = () => {
         throw new Error(`Unknown tool: ${action}`);
       }
       
-      const response = await fetch(`${API_BASE_URL}/api/tools/run`, {
+      const response = await fetch(`/api/tools/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -1008,7 +1038,7 @@ const App: React.FC = () => {
           break;
           
         case 'Wikipedia':
-          const wikiResponse = await fetch(`${API_BASE_URL}/api/tools/run`, {
+          const wikiResponse = await fetch(`/api/tools/run`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
@@ -1023,7 +1053,7 @@ const App: React.FC = () => {
           break;
           
         case 'Translator':
-          const transResponse = await fetch(`${API_BASE_URL}/api/tools/run`, {
+          const transResponse = await fetch(`/api/tools/run`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
@@ -1038,7 +1068,7 @@ const App: React.FC = () => {
           break;
           
         case 'Summarizer':
-          const summResponse = await fetch(`${API_BASE_URL}/api/tools/run`, {
+          const summResponse = await fetch(`/api/tools/run`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
@@ -1063,7 +1093,7 @@ const App: React.FC = () => {
           break;
           
         case 'Aura Memory':
-          await fetch(`${API_BASE_URL}/api/memory`, {
+          await fetch(`/api/memory`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ key: Date.now().toString(), value: toolInput })
@@ -1473,81 +1503,101 @@ const App: React.FC = () => {
                 </div>
               ) : toolResult ? (
                 <div className="space-y-4">
-                  {toolResult.type === 'weather' && toolResult.data && (
-                    <div className="relative p-6 rounded-2xl border border-transparent overflow-hidden">
-                      <div className="relative z-10 backdrop-blur-sm bg-slate-900/50 p-6 rounded-xl space-y-4">
-                        <div className="flex items-center justify-between mb-4">
-                          <div>
-                            <h4 className="text-2xl font-bold">{toolResult.data.name || 'Unknown Location'}</h4>
-                            {toolResult.data.weather?.[0] && (
-                              <p className={mutedText}>{toolResult.data.weather[0].description}</p>
-                            )}
-                          </div>
-                          {toolResult.data.main && (
-                            <div className="text-4xl font-bold">{Math.round(toolResult.data.main.temp)}°C</div>
-                          )}
+                  {toolResult.type === 'weather' && toolResult.data && (() => {
+                    const w = toolResult.data;
+                    const tz = w.timezone || 0;
+                    const cond = w.weather?.[0];
+                    const aqi = w.airQuality?.indexes?.[0];
+                    return (
+                      <div className="rounded-3xl overflow-hidden bg-gradient-to-b from-blue-600 via-blue-500 to-sky-400 text-white shadow-2xl">
+                        {/* Header */}
+                        <div className="px-6 pt-6 pb-4 text-center">
+                          <p className="text-lg font-semibold opacity-90">{w.name}{w.country ? `, ${w.country}` : ''}</p>
+                          <div className="text-7xl font-thin my-1">{w.main.temp}°</div>
+                          <p className="text-lg capitalize opacity-90">{cond?.description ?? ''}</p>
+                          <p className="text-sm opacity-75 mt-1">
+                            H:{w.daily?.[0]?.max ?? w.main.temp_max}° &nbsp; L:{w.daily?.[0]?.min ?? w.main.temp_min}°
+                          </p>
                         </div>
-                        
-                        {toolResult.data.main && (
-                          <div className="grid grid-cols-3 gap-4 text-sm mb-4">
-                            <div><span className={mutedText}>Feels like:</span> {Math.round(toolResult.data.main.feels_like)}°C</div>
-                            <div><span className={mutedText}>Humidity:</span> {toolResult.data.main.humidity}%</div>
-                            <div><span className={mutedText}>Wind:</span> {toolResult.data.wind?.speed || 0} m/s</div>
-                          </div>
-                        )}
-                        
-                        {/* Air Quality */}
-                        {toolResult.data.airQuality?.indexes && (
-                          <div className="pt-4 border-t border-slate-700/50">
-                            <h5 className="font-semibold mb-3 flex items-center gap-2">
-                              <span>Air Quality</span>
-                              <span className={`px-3 py-1 rounded-full text-sm ${
-                                toolResult.data.airQuality.indexes[0].aqi <= 50 ? 'bg-green-500/20 text-green-400' :
-                                toolResult.data.airQuality.indexes[0].aqi <= 100 ? 'bg-yellow-500/20 text-yellow-400' :
-                                toolResult.data.airQuality.indexes[0].aqi <= 150 ? 'bg-orange-500/20 text-orange-400' :
-                                toolResult.data.airQuality.indexes[0].aqi <= 200 ? 'bg-red-500/20 text-red-400' : 'bg-purple-500/20 text-purple-400'
-                              }`}>
-                                {toolResult.data.airQuality.indexes[0].category}
-                              </span>
-                            </h5>
-                            <div className="grid grid-cols-2 gap-3 text-sm">
-                              <div className="p-3 rounded-lg bg-slate-800/50">
-                                <span className={mutedText}>AQI:</span>
-                                <span className="ml-2 font-semibold">{toolResult.data.airQuality.indexes[0].aqi}</span>
+
+                        {/* Hourly strip */}
+                        {w.hourly?.length > 0 && (
+                          <div className="mx-4 mb-3 rounded-2xl bg-white/20 backdrop-blur-sm">
+                            <div className="flex overflow-x-auto scrollbar-hide px-2 py-3 gap-1">
+                              {/* "Now" slot */}
+                              <div className="flex flex-col items-center min-w-[52px] gap-1 px-1">
+                                <span className="text-xs font-medium opacity-90">Now</span>
+                                <span className="text-xl">{weatherEmoji(cond?.icon ?? '01d')}</span>
+                                {w.hourly[0]?.pop > 0 && <span className="text-xs text-blue-100">{w.hourly[0].pop}%</span>}
+                                <span className="text-sm font-semibold">{w.main.temp}°</span>
                               </div>
-                              {toolResult.data.airQuality.pollutants?.slice(0, 3).map((pollutant: any, i: number) => (
-                                <div key={i} className="p-3 rounded-lg bg-slate-800/50">
-                                  <span className={mutedText}>{pollutant.code}:</span>
-                                  <span className="ml-2 font-semibold">{pollutant.concentration?.value?.toFixed(1)} {pollutant.concentration?.units}</span>
+                              {w.hourly.map((h: any, i: number) => (
+                                <div key={i} className="flex flex-col items-center min-w-[52px] gap-1 px-1">
+                                  <span className="text-xs font-medium opacity-90">{fmtTime(h.dt, tz)}</span>
+                                  <span className="text-xl">{weatherEmoji(h.icon)}</span>
+                                  {h.pop > 0 && <span className="text-xs text-blue-100">{h.pop}%</span>}
+                                  {h.pop === 0 && <span className="text-xs opacity-0">0%</span>}
+                                  <span className="text-sm font-semibold">{h.temp}°</span>
                                 </div>
                               ))}
                             </div>
                           </div>
                         )}
-                        
-                        {/* Pollen */}
-                        {toolResult.data.pollen?.dailyInfo?.[0] && (
-                          <div className="pt-4 border-t border-slate-700/50">
-                            <h5 className="font-semibold mb-3">Pollen Forecast</h5>
-                            <div className="grid grid-cols-3 gap-3 text-sm">
-                              {toolResult.data.pollen.dailyInfo[0].pollenTypeInfo?.map((pollen: any, i: number) => (
-                                <div key={i} className="p-3 rounded-lg bg-slate-800/50">
-                                  <div className={mutedText}>{pollen.displayName}:</div>
-                                  <div className={`font-semibold ${
-                                    pollen.indexInfo.value <= 1 ? 'text-green-400' :
-                                    pollen.indexInfo.value <= 2 ? 'text-yellow-400' :
-                                    pollen.indexInfo.value <= 3 ? 'text-orange-400' : 'text-red-400'
-                                  }`}>
-                                    {pollen.indexInfo.category}
+
+                        {/* 7-day forecast */}
+                        {w.daily?.length > 0 && (
+                          <div className="mx-4 mb-3 rounded-2xl bg-white/20 backdrop-blur-sm divide-y divide-white/20">
+                            {w.daily.map((d: any, i: number) => (
+                              <div key={i} className="flex items-center px-4 py-2 gap-3 text-sm">
+                                <span className="w-10 font-medium opacity-90">{i === 0 ? 'Today' : fmtDay(d.dt)}</span>
+                                <span className="text-lg w-8">{weatherEmoji(d.icon)}</span>
+                                {d.pop > 0 && <span className="text-xs text-blue-100 w-8">{d.pop}%</span>}
+                                {d.pop === 0 && <span className="w-8" />}
+                                <div className="flex-1 flex items-center gap-2">
+                                  <span className="opacity-75 text-xs w-7 text-right">{d.min}°</span>
+                                  <div className="flex-1 h-1.5 rounded-full bg-white/30">
+                                    <div className="h-full rounded-full bg-white/80" style={{width:'100%'}} />
                                   </div>
+                                  <span className="text-xs font-semibold w-7">{d.max}°</span>
                                 </div>
-                              ))}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Detail tiles */}
+                        <div className="mx-4 mb-4 grid grid-cols-3 gap-2">
+                          {[
+                            { label: 'Feels Like', value: `${w.main.feels_like}°`, icon: '🌡️' },
+                            { label: 'Humidity', value: `${w.main.humidity}%`, icon: '💧' },
+                            { label: 'Wind', value: `${w.wind.speed} m/s ${windDirection(w.wind.deg ?? 0)}`, icon: '💨' },
+                            { label: 'Visibility', value: w.visibility ? `${(w.visibility/1000).toFixed(1)} km` : '—', icon: '👁️' },
+                            { label: 'Sunrise', value: w.sys?.sunrise ? fmtTime(w.sys.sunrise, tz) : '—', icon: '🌅' },
+                            { label: 'Sunset', value: w.sys?.sunset ? fmtTime(w.sys.sunset, tz) : '—', icon: '🌇' },
+                          ].map((tile, i) => (
+                            <div key={i} className="rounded-2xl bg-white/20 backdrop-blur-sm p-3">
+                              <p className="text-xs opacity-70 uppercase tracking-wide">{tile.icon} {tile.label}</p>
+                              <p className="text-base font-semibold mt-1">{tile.value}</p>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Air Quality */}
+                        {aqi && (
+                          <div className="mx-4 mb-4 rounded-2xl bg-white/20 backdrop-blur-sm p-4">
+                            <p className="text-xs opacity-70 uppercase tracking-wide mb-1">🌬️ Air Quality</p>
+                            <div className="flex items-center gap-3">
+                              <span className="text-2xl font-semibold">{aqi.aqi}</span>
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                aqi.aqi <= 50 ? 'bg-green-500/40' : aqi.aqi <= 100 ? 'bg-yellow-500/40' :
+                                aqi.aqi <= 150 ? 'bg-orange-500/40' : 'bg-red-500/40'
+                              }`}>{aqi.category}</span>
                             </div>
                           </div>
                         )}
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                   
                   {toolResult.type === 'news' && Array.isArray(toolResult.data) && (
                     <div className="space-y-3">

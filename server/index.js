@@ -235,101 +235,95 @@ app.post('/api/tools/run', async (req, res) => {
         try {
           const city = input.city || 'Frederick';
           console.log(`[Weather] Fetching weather for: ${city}`);
-          
+
           const openWeatherKey = process.env.OPENWEATHER_API_KEY;
-          
-          if (!openWeatherKey) {
-            throw new Error('OpenWeather API key not configured');
-          }
-          
-          // Use OpenWeather Geocoding (more reliable)
+          if (!openWeatherKey) throw new Error('OpenWeather API key not configured');
+
+          // Geocode
           const geocodeResponse = await fetch(`https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(city)}&limit=1&appid=${openWeatherKey}`);
           const geocodeData = await geocodeResponse.json();
-          
-          console.log(`[Weather] Geocode response:`, geocodeData);
-          
-          if (!geocodeData || geocodeData.length === 0) {
-            throw new Error(`Location not found: ${city}`);
-          }
-          
-          const location = { lat: geocodeData[0].lat, lng: geocodeData[0].lon };
+          if (!geocodeData?.length) throw new Error(`Location not found: ${city}`);
+
+          const { lat, lon } = geocodeData[0];
           const locationName = geocodeData[0].name;
-          
-          console.log(`[Weather] Location found: ${locationName} (${location.lat}, ${location.lng})`);
-          
-          // Get weather from OpenWeather
-          const weatherResponse = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${location.lat}&lon=${location.lng}&appid=${openWeatherKey}&units=metric`);
-          const weatherData = await weatherResponse.json();
-          
-          if (!weatherResponse.ok) {
-            throw new Error(`Weather API error: ${weatherData.message || weatherResponse.status}`);
+          const country = geocodeData[0].country;
+          console.log(`[Weather] Location: ${locationName}, ${country} (${lat}, ${lon})`);
+
+          // Current + 5-day forecast in parallel
+          const [weatherRes, forecastRes] = await Promise.all([
+            fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${openWeatherKey}&units=metric`),
+            fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${openWeatherKey}&units=metric&cnt=40`)
+          ]);
+
+          const weatherData = await weatherRes.json();
+          const forecastData = await forecastRes.json();
+          if (!weatherRes.ok) throw new Error(`Weather API error: ${weatherData.message || weatherRes.status}`);
+
+          // Hourly: next 8 slots (24h, every 3h)
+          const hourly = (forecastData.list || []).slice(0, 8).map(h => ({
+            dt: h.dt,
+            temp: Math.round(h.main.temp),
+            icon: h.weather[0].icon,
+            description: h.weather[0].description,
+            pop: Math.round((h.pop || 0) * 100)
+          }));
+
+          // Daily: group forecast by calendar date → min/max
+          const dailyMap = {};
+          for (const h of (forecastData.list || [])) {
+            const date = new Date(h.dt * 1000).toDateString();
+            if (!dailyMap[date]) dailyMap[date] = { dt: h.dt, temps: [], icon: h.weather[0].icon, description: h.weather[0].description, pop: 0 };
+            dailyMap[date].temps.push(h.main.temp);
+            dailyMap[date].pop = Math.max(dailyMap[date].pop, h.pop || 0);
           }
-          
-          console.log('[Weather] Weather data retrieved');
-          
-          // Try to get air quality from Google (optional)
+          const daily = Object.values(dailyMap).slice(0, 7).map(d => ({
+            dt: d.dt,
+            min: Math.round(Math.min(...d.temps)),
+            max: Math.round(Math.max(...d.temps)),
+            icon: d.icon,
+            description: d.description,
+            pop: Math.round(d.pop * 100)
+          }));
+
+          // Air quality (optional, Google)
           let airQuality = null;
           const googleApiKey = process.env.GOOGLE_MAPS_API_KEY;
           if (googleApiKey) {
             try {
-              const aqResponse = await fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${googleApiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  location: { latitude: location.lat, longitude: location.lng },
-                  extraComputations: ['POLLUTANT_CONCENTRATION', 'DOMINANT_POLLUTANT_CONCENTRATION', 'POLLUTANT_ADDITIONAL_INFO']
-                })
+              const aqRes = await fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${googleApiKey}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ location: { latitude: lat, longitude: lon }, extraComputations: ['POLLUTANT_CONCENTRATION', 'DOMINANT_POLLUTANT_CONCENTRATION'] })
               });
-              if (aqResponse.ok) {
-                const aqData = await aqResponse.json();
-                airQuality = aqData;
-                console.log('[Weather] Air Quality data retrieved:', JSON.stringify(aqData).substring(0, 200));
-              } else {
-                const errorText = await aqResponse.text();
-                console.log('[Weather] Air Quality API error:', aqResponse.status, errorText.substring(0, 200));
+              if (aqRes.ok) {
+                const aqData = await aqRes.json();
+                airQuality = { indexes: aqData.indexes || [], pollutants: aqData.pollutants || [] };
               }
-            } catch (e) {
-              console.log('[Weather] Air Quality API error:', e.message);
-            }
+            } catch (e) { console.log('[Weather] AQ error:', e.message); }
           }
-          
-          // Try to get pollen data from Google (optional)
-          let pollen = null;
-          if (googleApiKey) {
-            try {
-              const pollenResponse = await fetch(`https://pollen.googleapis.com/v1/forecast:lookup?key=${googleApiKey}&location.latitude=${location.lat}&location.longitude=${location.lng}&days=1&languageCode=en`);
-              if (pollenResponse.ok) {
-                const pollenData = await pollenResponse.json();
-                pollen = pollenData;
-                console.log('[Weather] Pollen data retrieved:', JSON.stringify(pollenData).substring(0, 200));
-              } else {
-                const errorText = await pollenResponse.text();
-                console.log('[Weather] Pollen API error:', pollenResponse.status, errorText.substring(0, 200));
-              }
-            } catch (e) {
-              console.log('[Weather] Pollen API error:', e.message);
-            }
-          }
-          
+
           result = {
             name: locationName,
+            country,
+            timezone: weatherData.timezone,
+            dt: weatherData.dt,
             main: {
-              temp: weatherData.main?.temp || 0,
-              feels_like: weatherData.main?.feels_like || 0,
-              humidity: weatherData.main?.humidity || 0
+              temp: Math.round(weatherData.main.temp),
+              feels_like: Math.round(weatherData.main.feels_like),
+              humidity: weatherData.main.humidity,
+              pressure: weatherData.main.pressure,
+              temp_min: Math.round(weatherData.main.temp_min),
+              temp_max: Math.round(weatherData.main.temp_max),
             },
-            weather: weatherData.weather || [{ description: 'N/A' }],
-            wind: { speed: weatherData.wind?.speed || 0 },
-            airQuality: airQuality ? {
-              indexes: airQuality.indexes || [],
-              pollutants: airQuality.pollutants || []
-            } : null,
-            pollen: pollen ? {
-              dailyInfo: pollen.dailyInfo || []
-            } : null
+            weather: weatherData.weather || [{ description: 'N/A', icon: '01d' }],
+            wind: { speed: weatherData.wind?.speed || 0, deg: weatherData.wind?.deg || 0 },
+            visibility: weatherData.visibility,
+            sys: { sunrise: weatherData.sys?.sunrise, sunset: weatherData.sys?.sunset },
+            hourly,
+            daily,
+            airQuality,
           };
-          
-          console.log(`[Weather] Success: ${result.name}`);
+
+          console.log(`[Weather] Success: ${result.name}, ${result.country}`);
         } catch (error) {
           console.error('[Weather] Error:', error.message);
           throw error;
