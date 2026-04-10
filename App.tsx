@@ -19,6 +19,7 @@ import { AuraGamesDrawer } from './src/components/AuraGamesDrawer';
 import { AuraRoutePlanner } from './src/components/AuraRoutePlanner';
 import { AuraThemeManager } from './src/components/AuraThemeManager';
 import { pcControlNL, pcControlExecute } from './src/services/pcControl';
+import { API_BASE_URL } from './src/config/api';
 
 const emailTool: FunctionDeclaration = {
   name: 'manage_emails',
@@ -595,10 +596,7 @@ const App: React.FC = () => {
     if (fc.name === 'save_memory') {
       const { key, value } = fc.args;
       try {
-        await fetch('/api/memory', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key, value })
+        await fetch(`${API_BASE_URL}/api/memory`, {
         });
         response.result = `Memory saved: ${key} = ${value}`;
       } catch (error) {
@@ -667,10 +665,7 @@ const App: React.FC = () => {
           }
           response.result = `Document generated successfully in ${format.toUpperCase()} format. ${format === 'pdf' ? 'Print dialog opened.' : 'File downloaded.'}`;
         } else {
-          const res = await fetch('/api/tools/run', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tool, input: input || {} })
+          const res = await fetch(`${API_BASE_URL}/api/tools/run`, {
           });
           const data = await res.json();
           if (data.success) {
@@ -705,7 +700,7 @@ const App: React.FC = () => {
       }
     }
     else if (fc.name === 'manage_emails') {
-      const res = await fetch('/api/tools/email', {
+      const res = await fetch(`${API_BASE_URL}/api/tools/email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(fc.args)
@@ -714,7 +709,7 @@ const App: React.FC = () => {
       response.result = data.error || `Found ${data.length} emails`;
     }
     else if (fc.name === 'check_linkedin') {
-      const res = await fetch('/api/tools/linkedin', {
+      const res = await fetch(`${API_BASE_URL}/api/tools/linkedin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(fc.args)
@@ -743,7 +738,7 @@ const App: React.FC = () => {
       setStatus(AssistantStatus.LISTENING);
       const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY as string });
       
-      const memory = await fetch('/api/memory')
+      const memory = await fetch(`${API_BASE_URL}/api/memory`)
         .then(r => r.ok ? r.json() : {})
         .catch(e => {
           console.error('Memory fetch failed:', e);
@@ -770,7 +765,7 @@ const App: React.FC = () => {
       await inCtx.audioWorklet.addModule('/pcm-processor.js');
 
       const sessionPromise = ai.live.connect({
-        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+        model: 'gemini-2.0-flash-live-001',
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
@@ -842,8 +837,14 @@ const App: React.FC = () => {
               nextStartTimeRef.current = 0;
             }
           },
-          onerror: () => setStatus(AssistantStatus.ERROR),
-          onclose: () => setStatus(AssistantStatus.IDLE)
+          onerror: (e: any) => {
+            console.error('Live session error:', e);
+            setStatus(AssistantStatus.ERROR);
+          },
+          onclose: (e: any) => {
+            console.error('Live session closed:', e);
+            setStatus(AssistantStatus.IDLE);
+          }
         }
       });
       sessionRef.current = await sessionPromise;
@@ -954,7 +955,7 @@ const App: React.FC = () => {
         throw new Error(`Unknown tool: ${action}`);
       }
       
-      const response = await fetch(`/api/tools/run`, {
+      const response = await fetch(`${API_BASE_URL}/api/tools/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -1038,7 +1039,7 @@ const App: React.FC = () => {
           break;
           
         case 'Wikipedia':
-          const wikiResponse = await fetch(`/api/tools/run`, {
+          const wikiResponse = await fetch(`${API_BASE_URL}/api/tools/run`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
@@ -1053,7 +1054,7 @@ const App: React.FC = () => {
           break;
           
         case 'Translator':
-          const transResponse = await fetch(`/api/tools/run`, {
+          const transResponse = await fetch(`${API_BASE_URL}/api/tools/run`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
@@ -1068,7 +1069,7 @@ const App: React.FC = () => {
           break;
           
         case 'Summarizer':
-          const summResponse = await fetch(`/api/tools/run`, {
+          const summResponse = await fetch(`${API_BASE_URL}/api/tools/run`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
@@ -1093,7 +1094,7 @@ const App: React.FC = () => {
           break;
           
         case 'Aura Memory':
-          await fetch(`/api/memory`, {
+          await fetch(`${API_BASE_URL}/api/memory`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ key: Date.now().toString(), value: toolInput })
@@ -1133,9 +1134,11 @@ const App: React.FC = () => {
       }
       
       const ai = new GoogleGenAI({ apiKey });
-      const model = ai.getGenerativeModel({ model: 'gemini-pro' });
-      const result = await model.generateContent(userMessage);
-      const response = result.response.text();
+      const result = await ai.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: userMessage,
+      });
+      const response = result.text ?? '';
       
       setMessages(prev => [...prev, { 
         id: (Date.now() + 1).toString(), 

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Navigation, Clock, DollarSign, MapPin, Map } from 'lucide-react';
+import { API_BASE_URL } from '../config/api';
 
 interface Props {
   onClose: () => void;
@@ -65,7 +66,7 @@ export function AuraRoutePlanner({ onClose }: Props) {
     
     try {
       const response = await fetch(
-        `/api/places/autocomplete?input=${encodeURIComponent(input)}`
+        `${API_BASE_URL}/api/places/autocomplete?input=${encodeURIComponent(input)}`
       );
       
       if (!response.ok) return [];
@@ -146,7 +147,7 @@ export function AuraRoutePlanner({ onClose }: Props) {
       
       console.log('Request payload:', JSON.stringify(payload, null, 2));
       
-      const response = await fetch('/api/tools/run', {
+      const response = await fetch(`${API_BASE_URL}/api/tools/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
