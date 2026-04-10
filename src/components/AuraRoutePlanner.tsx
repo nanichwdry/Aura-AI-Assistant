@@ -70,6 +70,9 @@ export function AuraRoutePlanner({ onClose }: Props) {
       
       if (!response.ok) return [];
       
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) return [];
+      
       const data = await response.json();
       return data.predictions || [];
     } catch (error) {
@@ -148,6 +151,15 @@ export function AuraRoutePlanner({ onClose }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('Non-JSON response:', text.slice(0, 200));
+        setError('Server returned an unexpected response. Make sure the backend is running.');
+        setIsLoading(false);
+        return;
+      }
 
       const data = await response.json();
       console.log('Response status:', response.status);
