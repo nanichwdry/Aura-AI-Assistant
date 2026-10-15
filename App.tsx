@@ -1,3 +1,5 @@
+import './src/styles/aura-workspace.css';
+import { AvatarStream, AvatarStreamHandle } from './src/components/AvatarStream';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GoogleGenAI, Modality, LiveServerMessage, Type, FunctionDeclaration } from '@google/genai';
 import { Mic, MicOff, Settings as SettingsIcon, Sun, Moon, Volume2, VolumeX, Send, Paperclip, Menu, X, Cloud, Newspaper, BookOpen, Clock, Music as MusicIcon, Gamepad2, Image, Palette, Code, FileSearch, PenTool, FileText, ListTodo, StickyNote, Languages, User, Brain, Navigation, Download } from 'lucide-react';
@@ -7,7 +9,6 @@ import { decode, decodeAudioData, createBlob } from './utils/audio';
 import Settings from './components/Settings';
 import DesktopSettings from './src/components/DesktopSettings';
 import AuraV3Wrapper from './src/components/AuraV3Wrapper';
-import { AuraAvatar } from './src/components/avatar/AuraAvatar';
 import { CodeAnalyzerDrawer } from './src/tools/CodeAnalyzerDrawer';
 import { AuraNewsDrawer } from './src/components/AuraNewsDrawer';
 import { AuraSketchPad } from './src/components/AuraSketchPad';
@@ -486,8 +487,21 @@ const App: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const composerRef = useRef<HTMLInputElement>(null);
   const [isDark, setIsDark] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
+  const [avatarMode, setAvatarMode] = useState(false);
+  const [avatarError, setAvatarError] = useState('');
+  const avatarRef = useRef<AvatarStreamHandle>(null);
+  const avatarReady = useRef(false);
+  const mutedRef = useRef(isMuted);
+  mutedRef.current = isMuted;
+  const onAvatarReady = useCallback((ready: boolean) => { avatarReady.current = ready; }, []);
+  const onAvatarError = useCallback((message: string) => {
+    avatarReady.current = false;
+    setAvatarMode(false);
+    setAvatarError(message);
+  }, []);
   const [textInput, setTextInput] = useState('');
   const [toolInput, setToolInput] = useState('');
   const [fromLang, setFromLang] = useState('auto');
@@ -768,6 +782,8 @@ const App: React.FC = () => {
         model: 'gemini-2.0-flash-live-001',
         config: {
           responseModalities: [Modality.AUDIO],
+          outputAudioTranscription: {},
+          inputAudioTranscription: {},
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
           },
@@ -801,7 +817,7 @@ const App: React.FC = () => {
             }
 
             const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
-            if (base64Audio && !isMuted) {
+            if (base64Audio && !mutedRef.current && !avatarReady.current) {
               setStatus(AssistantStatus.SPEAKING);
               nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outCtx.currentTime);
               const audioBuffer = await decodeAudioData(decode(base64Audio), outCtx, 24000, 1);
@@ -820,6 +836,7 @@ const App: React.FC = () => {
 
             if (message.serverContent?.turnComplete) {
               const { input, output } = currentTranscriptionRef.current;
+              if (output && !mutedRef.current) avatarRef.current?.speak(output);
               if (input || output) {
                 setMessages(prev => [
                   ...prev,
@@ -832,6 +849,7 @@ const App: React.FC = () => {
             }
 
             if (message.serverContent?.interrupted) {
+              avatarRef.current?.interrupt();
               sourcesRef.current.forEach(s => { try { s.stop(); } catch(e) {} });
               sourcesRef.current.clear();
               nextStartTimeRef.current = 0;
@@ -1139,6 +1157,7 @@ const App: React.FC = () => {
         contents: userMessage,
       });
       const response = result.text ?? '';
+      if (!mutedRef.current) avatarRef.current?.speak(response);
       
       setMessages(prev => [...prev, { 
         id: (Date.now() + 1).toString(), 
@@ -1221,113 +1240,55 @@ const App: React.FC = () => {
 
   return (
     <AuraV3Wrapper>
-      <div className="fixed inset-0 h-screen w-screen overflow-hidden">
-        {/* Background Layer - Always visible */}
-        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-          {appBackground ? (
-            <div 
-              className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-              style={{ backgroundImage: `url(${appBackground})` }}
-            >
-              <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-            </div>
-          ) : (
-            <>
-              <div className={`absolute inset-0 ${bgColor}`} />
-              {[...Array(30)].map((_, i) => (
-                <div
-                  key={i}
-                  className="absolute w-1 bg-gradient-to-b from-cyan-400/40 via-cyan-400/20 to-transparent"
-                  style={{
-                    left: `${i * 3.33}%`,
-                    height: `${40 + Math.random() * 80}px`,
-                    animation: `drop ${3 + Math.random() * 4}s linear infinite`,
-                    animationDelay: `${Math.random() * 5}s`
-                  }}
-                />
-              ))}
-            </>
-          )}
-        </div>
-        <style>{`
-          @keyframes drop {
-            0% { transform: translateY(-100%); opacity: 0; }
-            10% { opacity: 1; }
-            90% { opacity: 0.8; }
-            100% { transform: translateY(100vh); opacity: 0; }
-          }
-        `}</style>
+      <div className={`aura-workspace ${isDark ? "workspace-dark" : "workspace-light"} fixed inset-0 h-screen w-screen overflow-hidden`}>
+        <div className="workspace-ambient" aria-hidden="true" style={appBackground ? { backgroundImage: `linear-gradient(0deg, ${isDark ? "#101214e8" : "#f6f8f6e8"}, ${isDark ? "#101214e8" : "#f6f8f6e8"}), url(${appBackground})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined} />
 
         {/* Main Shell - Fixed grid layout */}
-        <div className="relative z-10 h-full grid grid-cols-1 lg:grid-cols-[1fr_320px]">
+        <div className="workspace-shell relative z-10 h-full">
           {/* Left: Main Content Area */}
-          <main className="h-full overflow-hidden flex flex-col">
-            {/* Top Bar */}
-            <div className={`shrink-0 h-16 ${cardBg} border-b ${borderColor} flex items-center justify-between px-6 shadow-lg`}>
+          <main className="workspace-main h-full overflow-hidden flex flex-col">
+            <header className="workspace-header">
               <div className="flex items-center gap-3">
-                <img src="/Aura AI logo.png" alt="Aura" className="w-8 h-8 rounded-xl" />
-                <span className="font-semibold text-lg bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">Aura</span>
+                <div className="workspace-brand-mark"><Brain size={20} /></div>
+                <div><h1>Aura <span>Workspace</span></h1><p>Your ideas. A little more possible.</p></div>
               </div>
-              <div className="flex items-center gap-2">
-                <button onClick={handleToggleSession} className={`p-2.5 rounded-xl transition-all ${status !== AssistantStatus.IDLE ? 'bg-gradient-to-r from-red-600 to-pink-600 text-white shadow-lg shadow-red-500/50' : 'hover:bg-gray-700/10'}`}>
-                  {status !== AssistantStatus.IDLE ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-                </button>
-                <button onClick={() => setIsDark(!isDark)} className="p-2.5 rounded-xl hover:bg-gray-700/10 transition-colors">
-                  {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-                </button>
-                <button onClick={() => setIsMuted(!isMuted)} className="p-2.5 rounded-xl hover:bg-gray-700/10 transition-colors">
-                  {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-                </button>
-                <button onClick={() => setIsSettingsOpen(true)} className="p-2.5 rounded-xl hover:bg-gray-700/10 transition-colors">
-                  <SettingsIcon className="w-5 h-5" />
-                </button>
+              <div className="workspace-header-actions">
+                <span className="workspace-status"><i />{status === AssistantStatus.IDLE ? 'Ready when you are' : status.toLowerCase()}</span>
+                <button title={isDark ? 'Switch to light theme' : 'Switch to dark theme'} aria-label="Toggle color theme" onClick={() => setIsDark(!isDark)}>{isDark ? <Sun size={18} /> : <Moon size={18} />}</button>
+                <button title={isMuted ? 'Unmute Aura' : 'Mute Aura'} aria-label={isMuted ? 'Unmute Aura' : 'Mute Aura'} onClick={() => setIsMuted(!isMuted)}>{isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}</button>
+                <button title="Settings" aria-label="Open settings" onClick={() => setIsSettingsOpen(true)}><SettingsIcon size={18} /></button>
+                <button className="workspace-mobile-tools" title="Tools" aria-label="Open tools" onClick={() => setIsSidebarOpen(true)}><Menu size={18} /></button>
               </div>
-            </div>
+            </header>
 
-            {/* Hero Area - Transitions between full and compact */}
-            <div className={`shrink-0 transition-all duration-500 ${messages.length === 0 ? 'h-64' : 'h-20'} flex items-center justify-center mt-64`}>
-              <div className="flex flex-col items-center justify-center gap-6">
-                <motion.div 
-                  animate={{ 
-                    scale: messages.length === 0 ? 1 : 0.5,
-                    opacity: messages.length === 0 ? 1 : 0.7
-                  }}
-                  transition={{ duration: 0.5 }}
-                  className="relative"
-                >
-                  <motion.div 
-                    animate={{ 
-                      boxShadow: [
-                        '0 0 20px rgba(124, 58, 237, 0.3)',
-                        '0 0 60px rgba(124, 58, 237, 0.6)',
-                        '0 0 20px rgba(124, 58, 237, 0.3)'
-                      ]
-                    }}
-                    transition={{ duration: 3, repeat: Infinity }}
-                    className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl blur-2xl opacity-50"
-                  />
-                  <div className="relative">
-                    <AuraAvatar isSpeaking={status === AssistantStatus.SPEAKING} />
-                  </div>
-                </motion.div>
-                {messages.length === 0 && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="text-center"
-                  >
-                    <h2 className="text-3xl font-bold mb-2 bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
-                      Hi, I'm Aura
-                    </h2>
-                    <p className={mutedText}>Your AI-powered personal assistant</p>
-                  </motion.div>
-                )}
-              </div>
+            <div className="workspace-modebar">
+              <button aria-pressed={avatarMode} className="workspace-mode-toggle" onClick={() => {
+                avatarReady.current = false;
+                sourcesRef.current.forEach(source => { try { source.stop(); } catch {} });
+                sourcesRef.current.clear();
+                setAvatarError('');
+                setAvatarMode(mode => !mode);
+              }}><span className={!avatarMode ? 'active' : ''}>Chat</span><span className={avatarMode ? 'active' : ''}>Avatar video</span></button>
+              {avatarError && <p role="alert" className="mt-2 text-sm">{avatarError}</p>}
+              {avatarMode && <AvatarStream ref={avatarRef} muted={isMuted} onReady={onAvatarReady} onError={onAvatarError} />}
             </div>
+            {!avatarMode && messages.length === 0 && <section className="workspace-welcome">
+              <div className={`workspace-orb ${status === AssistantStatus.SPEAKING ? 'is-speaking' : ''}`} aria-hidden="true"><div /><span /><i /></div>
+              <span className="workspace-eyebrow">A LITTLE INTELLIGENCE. ENDLESS POSSIBILITY.</span>
+              <h2>What’s on your mind?</h2>
+              <p>Think it through, make something, or just say hello.<br />Aura is here to help you move forward.</p>
+              <div className="workspace-suggestions">
+                {[
+                  { icon: PenTool, title: 'Make something', detail: 'Turn a rough idea into a clear first draft', prompt: 'Help me turn an idea into a clear first draft. Ask me what I have in mind.' },
+                  { icon: BookOpen, title: 'Understand anything', detail: 'Break down a topic, one step at a time', prompt: 'Help me understand a new topic step by step. Ask me what I want to learn.' },
+                  { icon: Code, title: 'Build with confidence', detail: 'Work through code and solve a problem', prompt: 'Help me solve a coding problem. Ask me about my project and the issue.' },
+                ].map(item => <button key={item.title} onClick={() => { setTextInput(item.prompt); composerRef.current?.focus(); }}><item.icon size={19} /><strong>{item.title}</strong><span>{item.detail}</span><span className="suggestion-arrow">↗</span></button>)}
+              </div>
+            </section>}
 
             {/* Chat Area - Fixed height with internal scroll */}
-            <div className="flex-1 overflow-hidden flex flex-col">
-              <div className="flex-1 overflow-y-auto p-6 space-y-4 aura-scrollbar">
+            <div className={`workspace-conversation ${messages.length === 0 && !avatarMode ? "is-empty" : ""} flex-1 overflow-hidden flex flex-col`}>
+              <div className="workspace-messages flex-1 overflow-y-auto p-6 space-y-4 aura-scrollbar">
                 <AnimatePresence>
                   {messages.map((msg) => (
                     <motion.div 
@@ -1338,8 +1299,8 @@ const App: React.FC = () => {
                       transition={{ type: "spring", stiffness: 300, damping: 25 }}
                       className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
-                      <div className={`max-w-[70%] rounded-2xl px-4 py-3 ${msg.role === 'user' ? 'aura-accent shadow-lg' : `aura-card border ${borderColor}`}`}>
-                        <p className="text-sm leading-relaxed">{msg.content}</p>
+                      <div className={`workspace-message ${msg.role} max-w-[85%] rounded-2xl px-4 py-3 ${msg.role === 'user' ? 'aura-accent shadow-lg' : `aura-card border ${borderColor}`}`}>
+                        <div className="workspace-message-label">{msg.role === "assistant" ? "AURA" : "YOU"}</div><p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
                         {msg.role === 'assistant' && (
                           <div className="mt-2 flex items-center gap-2">
                             <button
@@ -1369,45 +1330,47 @@ const App: React.FC = () => {
               </div>
 
               {/* Input Bar - Sticky at bottom */}
-              <div className={`shrink-0 p-4 border-t ${borderColor} ${cardBg}`}>
-                <div className={`flex items-center gap-2 aura-card rounded-2xl px-4 py-2 border ${borderColor}`}>
-                  <button className={`p-2 hover:bg-gray-700/10 rounded-lg transition-colors ${mutedText}`}>
-                    <Paperclip className="w-5 h-5" />
+              <div className="workspace-composer-wrap shrink-0">
+                <div className="workspace-composer flex items-center gap-2">
+                  <button aria-label={status === AssistantStatus.IDLE ? 'Start voice conversation' : 'Stop voice conversation'} title={status === AssistantStatus.IDLE ? 'Start voice conversation' : 'Stop voice conversation'} onClick={handleToggleSession} className={`workspace-mic ${status !== AssistantStatus.IDLE ? 'is-active' : ''}`}>
+                    {status === AssistantStatus.IDLE ? <Mic size={20} /> : <MicOff size={20} />}
                   </button>
                   <input
+                    ref={composerRef}
+                    aria-label="Message Aura"
                     type="text"
                     value={textInput}
                     onChange={(e) => setTextInput(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleSendText()}
-                    placeholder="Type a message..."
+                    placeholder="Ask Aura anything, or start with a thought…"
                     className={`flex-1 bg-transparent outline-none ${textColor} aura-input`}
                   />
-                  <button onClick={handleSendText} className="p-2 aura-accent rounded-xl hover:scale-105 transition-transform shadow-lg">
+                  <button aria-label="Send message" title="Send message" disabled={!textInput.trim()} onClick={handleSendText} className="workspace-send">
                     <Send className="w-5 h-5" />
                   </button>
                 </div>
+                <p className="workspace-composer-note">Your next great idea starts with a conversation. <span>Enter to send ↵</span></p>
               </div>
             </div>
           </main>
 
           {/* Right: Tools Panel - Always visible */}
-          <aside className={`hidden lg:block h-full border-l ${borderColor} ${cardBg} overflow-y-auto`}>
-            <div className="p-6">
-              <h3 className="font-semibold mb-4 flex items-center gap-2">
-                <img src="/Aura AI logo.png" alt="AURA" className="w-5 h-5" />
-                AI Tools
-              </h3>
-              <div className="grid grid-cols-2 gap-3">
+          <aside className="workspace-sidebar hidden lg:flex h-full overflow-y-auto">
+            <div className="workspace-sidebar-inner">
+              <div className="workspace-wordmark"><div className="workspace-brand-mark"><Brain size={22} /></div><span>aura<span className="workspace-wordmark-dot">.</span></span></div>
+              <button className="workspace-new-chat" onClick={() => { avatarRef.current?.interrupt(); setMessages([]); setTextInput(''); composerRef.current?.focus(); }}><PenTool size={17} /> New conversation <span>＋</span></button>
+              <div className="workspace-nav-heading">YOUR TOOLKIT <span>✧</span></div>
+              <div className="workspace-tool-grid">
                 {QUICK_ACTIONS.map((action) => {
                   const Icon = action.icon;
                   return (
                     <button
                       key={action.name}
                       onClick={() => handleQuickAction(action.name)}
-                      className={`group relative p-4 rounded-2xl border ${borderColor} hover:border-indigo-500/50 transition-all text-sm overflow-hidden hover-lift`}
+                      className="workspace-tool group relative"
                     >
                       <div className={`absolute inset-0 bg-gradient-to-br ${action.color} opacity-0 group-hover:opacity-10 transition-opacity`} />
-                      <div className="relative flex flex-col items-center gap-2">
+                      <div className="relative flex items-center gap-3">
                         <Icon className="w-5 h-5 text-gray-400 group-hover:text-indigo-400 transition-colors" />
                         <span className="text-xs font-medium">{action.name}</span>
                       </div>
@@ -1415,6 +1378,7 @@ const App: React.FC = () => {
                   );
                 })}
               </div>
+              <div className="workspace-sidebar-bottom"><span className="workspace-profile">N</span><div><strong>Your personal space</strong><span>Built for a curious mind</span></div><button aria-label="Open account settings" onClick={() => setIsSettingsOpen(true)}><SettingsIcon size={16} /></button></div>
             </div>
           </aside>
         </div>
@@ -1422,7 +1386,7 @@ const App: React.FC = () => {
         {/* Mobile Sidebar Toggle */}
         <button
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="lg:hidden fixed bottom-6 right-6 p-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full shadow-2xl shadow-indigo-500/50 z-40 hover:scale-110 transition-transform"
+          className="hidden fixed bottom-6 right-6 p-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full shadow-2xl shadow-indigo-500/50 z-40 hover:scale-110 transition-transform"
         >
           <Menu className="w-6 h-6" />
         </button>
@@ -1442,6 +1406,7 @@ const App: React.FC = () => {
                   <X className="w-5 h-5" />
                 </button>
               </div>
+              <button className="workspace-new-chat mb-4 w-full" onClick={() => { avatarRef.current?.interrupt(); setMessages([]); setTextInput(''); setIsSidebarOpen(false); composerRef.current?.focus(); }}><PenTool size={17} /> New conversation</button>
               <div className="grid grid-cols-2 gap-3">
                 {QUICK_ACTIONS.map((action) => {
                   const Icon = action.icon;

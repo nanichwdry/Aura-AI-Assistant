@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { createAvatarTokenHandler } from './routes/avatar.js';
 import express from 'express';
 import Database from 'better-sqlite3';
 import cors from 'cors';
@@ -162,6 +163,7 @@ app.use('/api', (req, res, next) => {
 });
 
 app.use(authMiddleware);
+app.post('/api/avatar-token', createAvatarTokenHandler());
 
 app.get('/api/memory', (req, res) => {
   const rows = db.prepare('SELECT key, value FROM memories').all();

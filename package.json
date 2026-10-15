@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@google/genai": "^1.38.0",
+    "@heygen/liveavatar-web-sdk": "^0.0.19",
     "framer-motion": "^12.34.0",
     "lucide-react": "^0.463.0",
     "node-fetch": "^3.3.2",
