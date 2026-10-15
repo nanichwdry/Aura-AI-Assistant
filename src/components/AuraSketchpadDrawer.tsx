@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Save, Palette, Brush, Eraser, Undo, Redo, Download, Wand2, Sparkles, Image, Trash2 } from 'lucide-react';
 
@@ -60,7 +61,7 @@ export function AuraSketchpadDrawer({ onClose }: Props) {
 
   const loadSketches = async () => {
     try {
-      const response = await fetch('/api/tools/run', {
+      const response = await fetch(`${API_BASE_URL}/api/tools/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -91,7 +92,7 @@ export function AuraSketchpadDrawer({ onClose }: Props) {
     };
 
     try {
-      const response = await fetch('/api/tools/run', {
+      const response = await fetch(`${API_BASE_URL}/api/tools/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -111,7 +112,7 @@ export function AuraSketchpadDrawer({ onClose }: Props) {
 
   const deleteSketch = async (sketchId: string) => {
     try {
-      await fetch('/api/tools/run', {
+      await fetch(`${API_BASE_URL}/api/tools/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -134,7 +135,7 @@ export function AuraSketchpadDrawer({ onClose }: Props) {
     
     setIsLoading(true);
     try {
-      const response = await fetch('/api/tools/run', {
+      const response = await fetch(`${API_BASE_URL}/api/tools/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 

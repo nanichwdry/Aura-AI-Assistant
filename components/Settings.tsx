@@ -1,3 +1,5 @@
+import { getDeviceToken, setDeviceToken } from '../src/lib/deviceSession';
+import { API_BASE_URL } from '../src/config/api';
 import React, { useState, useEffect } from 'react';
 import { Settings as SettingsIcon, Wifi, WifiOff, Check } from 'lucide-react';
 
@@ -8,11 +10,12 @@ declare global {
 }
 
 const Settings: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const [serverUrl, setServerUrl] = useState('http://localhost:3001');
+  const [serverUrl, setServerUrl] = useState(API_BASE_URL);
   const [connected, setConnected] = useState(false);
   const [pairCode, setPairCode] = useState('');
+  const [pairId, setPairId] = useState('');
   const [pairing, setPairing] = useState(false);
-  const [token, setToken] = useState('');
+  const [token, setToken] = useState(getDeviceToken);
 
   useEffect(() => {
     if (window.__TAURI__) {
@@ -26,7 +29,7 @@ const Settings: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
   const checkConnection = async () => {
     try {
-      const res = await fetch(`${serverUrl}/api/memory`);
+      const res = await fetch(`${serverUrl}/api/health`);
       setConnected(res.ok);
     } catch {
       setConnected(false);
@@ -38,6 +41,8 @@ const Settings: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     try {
       const res = await fetch(`${serverUrl}/pair/start`, { method: 'POST' });
       const data = await res.json();
+      if (!res.ok || !data.pair_id || !data.code) throw new Error(data.error || "Pairing failed");
+      setPairId(data.pair_id);
       setPairCode(data.code);
     } catch (error) {
       alert('Failed to start pairing');
@@ -50,10 +55,12 @@ const Settings: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       const res = await fetch(`${serverUrl}/pair/confirm`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pair_id: pairCode, code: pairCode, device_name: 'Desktop' })
+        body: JSON.stringify({ pair_id: pairId, code: pairCode, device_name: 'Desktop' })
       });
       const data = await res.json();
+      if (!res.ok || !data.device_token) throw new Error(data.error || "Pairing failed");
       setToken(data.device_token);
+      setDeviceToken(data.device_token);
       
       if (window.__TAURI__) {
         await window.__TAURI__.invoke('save_config', { 
@@ -64,6 +71,7 @@ const Settings: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       
       setPairing(false);
       setPairCode('');
+      setPairId('');
       alert('Device paired successfully!');
     } catch (error) {
       alert('Failed to confirm pairing');
@@ -80,13 +88,13 @@ const Settings: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-      <div className="bg-zinc-900 rounded-3xl p-8 w-[500px] border border-zinc-800">
+      <div className="bg-zinc-900 rounded-3xl p-8 w-full max-w-[500px] max-h-[90dvh] overflow-y-auto border border-zinc-800">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <SettingsIcon className="w-6 h-6 text-blue-500" />
-            <h2 className="text-2xl font-bold">Desktop Settings</h2>
+            <h2 className="text-2xl font-bold">Aura Settings</h2>
           </div>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white">✕</button>
+          <button aria-label="Close settings" onClick={onClose} className="text-zinc-500 hover:text-white">✕</button>
         </div>
 
         <div className="space-y-6">
@@ -134,6 +142,7 @@ const Settings: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           {token && (
             <div className="p-4 bg-green-600/20 border border-green-500/50 rounded-xl">
               <p className="text-sm text-green-400 font-bold">✓ Device Paired</p>
+              <button onClick={() => { void navigator.clipboard.writeText(token).catch(() => alert("Clipboard is unavailable in this browser.")); }} className="mt-2 text-sm underline">Copy device token for Avatar mode</button>
             </div>
           )}
 

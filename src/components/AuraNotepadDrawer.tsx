@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Save, FileText, Wand2, CheckCircle, RotateCcw, Plus, Trash2, Edit3 } from 'lucide-react';
 
@@ -29,7 +30,7 @@ export function AuraNotepadDrawer({ onClose }: Props) {
 
   const loadNotes = async () => {
     try {
-      const response = await fetch('/api/tools/run', {
+      const response = await fetch(`${API_BASE_URL}/api/tools/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -58,7 +59,7 @@ export function AuraNotepadDrawer({ onClose }: Props) {
     };
 
     try {
-      const response = await fetch('/api/tools/run', {
+      const response = await fetch(`${API_BASE_URL}/api/tools/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -81,7 +82,7 @@ export function AuraNotepadDrawer({ onClose }: Props) {
     
     setIsLoading(true);
     try {
-      const response = await fetch('/api/tools/run', {
+      const response = await fetch(`${API_BASE_URL}/api/tools/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -109,7 +110,7 @@ export function AuraNotepadDrawer({ onClose }: Props) {
   const testAI = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/tools/run', {
+      const response = await fetch(`${API_BASE_URL}/api/tools/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -137,7 +138,7 @@ export function AuraNotepadDrawer({ onClose }: Props) {
     setIsLoading(true);
     try {
       console.log('Sending grammar check request...');
-      const response = await fetch('/api/tools/run', {
+      const response = await fetch(`${API_BASE_URL}/api/tools/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -172,7 +173,7 @@ export function AuraNotepadDrawer({ onClose }: Props) {
     setIsLoading(true);
     try {
       console.log('Sending rewrite request...');
-      const response = await fetch('/api/tools/run', {
+      const response = await fetch(`${API_BASE_URL}/api/tools/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -203,7 +204,7 @@ export function AuraNotepadDrawer({ onClose }: Props) {
 
   const deleteNote = async (noteId: string) => {
     try {
-      await fetch('/api/tools/run', {
+      await fetch(`${API_BASE_URL}/api/tools/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -228,7 +229,7 @@ export function AuraNotepadDrawer({ onClose }: Props) {
     
     setIsLoading(true);
     try {
-      const response = await fetch('/api/tools/run', {
+      const response = await fetch(`${API_BASE_URL}/api/tools/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 

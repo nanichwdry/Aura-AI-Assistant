@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { X, MapPin, Navigation, Star, Phone, Globe, Clock } from 'lucide-react';
 
@@ -53,7 +54,7 @@ export function AuraPlacesFinder({ onClose }: Props) {
     try {
       const searchLocation = location.trim() || (userLocation ? `${userLocation.lat},${userLocation.lng}` : 'current location');
       
-      const response = await fetch(`/api/places/search?query=${encodeURIComponent(searchQuery)}&location=${encodeURIComponent(searchLocation)}`);
+      const response = await fetch(`${API_BASE_URL}/api/places/search?query=${encodeURIComponent(searchQuery)}&location=${encodeURIComponent(searchLocation)}`);
       const data = await response.json();
       
       if (data.results) {

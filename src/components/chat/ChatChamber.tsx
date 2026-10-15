@@ -1,6 +1,6 @@
 import React from "react";
 import { MessageBubble } from "./MessageBubble";
-import { Message } from "../../types";
+import { Message } from "../../../types";
 
 interface ChatChamberProps {
   messages: Message[];

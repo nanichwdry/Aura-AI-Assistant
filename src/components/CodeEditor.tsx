@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState } from 'react';
 
 const CodeEditor = () => {
@@ -12,7 +13,7 @@ const CodeEditor = () => {
     if (!code.trim()) return;
     setLoading(true);
     try {
-      const response = await fetch('/api/code/analyze', {
+      const response = await fetch(`${API_BASE_URL}/api/code/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code, language })
@@ -29,7 +30,7 @@ const CodeEditor = () => {
     if (!code.trim() || !instruction.trim()) return;
     setLoading(true);
     try {
-      const response = await fetch('/api/code/edit', {
+      const response = await fetch(`${API_BASE_URL}/api/code/edit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code, instruction, language })
@@ -51,7 +52,7 @@ const CodeEditor = () => {
     if (!prompt.trim()) return;
     setLoading(true);
     try {
-      const response = await fetch('/api/code/generate', {
+      const response = await fetch(`${API_BASE_URL}/api/code/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt, language })

@@ -1,3 +1,4 @@
+import { getDeviceToken } from '../lib/deviceSession';
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { LiveAvatarSession, SessionEvent } from '@heygen/liveavatar-web-sdk';
 import { API_BASE_URL } from '../config/api';
@@ -18,7 +19,7 @@ export const AvatarStream = forwardRef<AvatarStreamHandle, Props>(function Avata
   const video = useRef<HTMLVideoElement>(null);
   const session = useRef<LiveAvatarSession | null>(null);
   const ready = useRef(false);
-  const [deviceToken, setDeviceToken] = useState('');
+  const [deviceToken, setDeviceToken] = useState(getDeviceToken);
   const [connecting, setConnecting] = useState(false);
   const [playBlocked, setPlayBlocked] = useState(false);
   const cancel = useRef<(() => void) | null>(null);

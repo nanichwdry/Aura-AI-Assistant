@@ -1,0 +1,4 @@
+// Conversation content must stay text when inserted into a printable document.
+export function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]!));
+}

@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 export interface CodeAnalysisRequest {
   code: string;
   language?: string;
@@ -42,7 +43,7 @@ interface ApiResponse {
 }
 
 export async function analyzeCode(req: CodeAnalysisRequest): Promise<CodeAnalysisResponse> {
-  const response = await fetch('/api/code/analyze', {
+  const response = await fetch(`${API_BASE_URL}/api/code/analyze`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(req)
@@ -77,7 +78,7 @@ export async function analyzeCode(req: CodeAnalysisRequest): Promise<CodeAnalysi
 }
 
 export async function fixCode(req: CodeAnalysisRequest): Promise<CodeAnalysisResponse> {
-  const response = await fetch('/api/code/fix', {
+  const response = await fetch(`${API_BASE_URL}/api/code/fix`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(req)

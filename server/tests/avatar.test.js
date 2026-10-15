@@ -45,3 +45,21 @@ test('repeated token requests are limited per device', async () => {
   await handler(request(), res);
   assert.equal(res.code, 429);
 });
+test('live discussion requires a conversational context, so it cannot silently start in repeat-only mode', async () => {
+  const req = request(); req.body = { conversation: true };
+  const res = response();
+  await createAvatarTokenHandler({ env })(req, res);
+  assert.equal(res.code, 503);
+  assert.ok(res.body.error.includes('AVATAR_CONTEXT_ID'));
+});
+test('live discussion passes only the server-configured persona and conversational mode', async () => {
+  const req = request(); req.body = { conversation: true, context_id: 'untrusted' };
+  const res = response();
+  await createAvatarTokenHandler({ env: { ...env, AVATAR_CONTEXT_ID: 'aura-context' }, fetchImpl: async (_url, options) => {
+    const body = JSON.parse(options.body);
+    assert.equal(body.avatar_persona.context_id, 'aura-context');
+    assert.equal(body.interactivity_type, 'CONVERSATIONAL');
+    return { ok: true, json: async () => ({ data: { session_token: 'temporary' } }) };
+  } })(req, res);
+  assert.equal(res.code, 200);
+});

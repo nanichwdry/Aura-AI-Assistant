@@ -1,265 +1,145 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Play, Pause, SkipForward, SkipBack, Search, Volume2, Minimize2 } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { X, Play, Pause, SkipForward, SkipBack, Search, Minimize2, Maximize2 } from 'lucide-react';
+import { API_BASE_URL } from '../config/api';
+import { loadYouTube, YouTubeAPI } from '../lib/youtube';
 
+interface Song { videoId: string; title: string; channel: string; thumbnail: string }
 interface Props {
   onClose: () => void;
-  onMinimize?: () => void;
+  minimized?: boolean;
+  onMinimize: () => void;
+  onRestore: () => void;
 }
+type Player = InstanceType<YouTubeAPI['Player']>;
 
-export function AuraMusicPlayer({ onClose, onMinimize }: Props) {
+export function AuraMusicPlayer({ onClose, minimized = false, onMinimize, onRestore }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [playlist, setPlaylist] = useState<any[]>([]);
+  const [playlist, setPlaylist] = useState<Song[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const playerRef = useRef<any>(null);
-  const playerContainerRef = useRef<HTMLDivElement>(null);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState('');
+  const host = useRef<HTMLDivElement>(null);
+  const player = useRef<Player | null>(null);
+  const search = useRef<AbortController | null>(null);
+  const queued = useRef<string | null>(null);
+  const latest = useRef({ playlist, currentIndex });
+  latest.current = { playlist, currentIndex };
 
   useEffect(() => {
-    // Create player container outside modal
-    if (!document.getElementById('youtube-player-container')) {
-      const container = document.createElement('div');
-      container.id = 'youtube-player-container';
-      container.style.position = 'fixed';
-      container.style.top = '-9999px';
-      document.body.appendChild(container);
-      
-      const playerDiv = document.createElement('div');
-      playerDiv.id = 'youtube-player';
-      container.appendChild(playerDiv);
-    }
-
-    // Load YouTube API
-    if (!(window as any).YT) {
-      const tag = document.createElement('script');
-      tag.src = 'https://www.youtube.com/iframe_api';
-      document.body.appendChild(tag);
-    }
-
-    // Initialize player when API is ready
-    const initPlayer = () => {
-      if ((window as any).YT && document.getElementById('youtube-player')) {
-        playerRef.current = new (window as any).YT.Player('youtube-player', {
-          height: '0',
-          width: '0',
-          playerVars: {
-            autoplay: 1,
-            controls: 0
+    let disposed = false;
+    let created: Player | null = null;
+    const element = document.createElement('div');
+    host.current!.appendChild(element);
+    const timeout = setTimeout(() => { if (!disposed) setError('YouTube is taking too long to connect. Close Music and try again.'); }, 20000);
+    loadYouTube().then(api => {
+      if (disposed) return;
+      created = new api.Player(element, {
+        width: '100%', height: '100%',
+        playerVars: { autoplay: 0, controls: 1, playsinline: 1, origin: window.location.origin },
+        events: {
+          onReady: () => {
+            if (disposed) return;
+            clearTimeout(timeout);
+            setReady(true);
+            setError('');
+            if (queued.current) { created?.loadVideoById(queued.current); queued.current = null; }
           },
-          events: {
-            onStateChange: (event: any) => {
-              if (event.data === (window as any).YT.PlayerState.ENDED) {
-                handleNext();
+          onStateChange: ({ data }) => {
+            if (disposed) return;
+            setIsPlaying(data === 1);
+            if (data === 0) {
+              const { playlist: songs, currentIndex: index } = latest.current;
+              if (index + 1 < songs.length) {
+                latest.current.currentIndex = index + 1;
+                setCurrentIndex(index + 1);
+                created?.loadVideoById(songs[index + 1].videoId);
               }
-              setIsPlaying(event.data === (window as any).YT.PlayerState.PLAYING);
             }
-          }
-        });
-      }
+          },
+          onError: () => { if (!disposed) { setIsPlaying(false); setError('This video cannot be played. Choose another song.'); } },
+          onAutoplayBlocked: () => { if (!disposed) setError('Your browser paused autoplay. Press Play to start the song.'); },
+        },
+      });
+      player.current = created;
+    }).catch(error => { if (!disposed) { clearTimeout(timeout); setError(error.message); } });
+    return () => {
+      disposed = true;
+      clearTimeout(timeout);
+      search.current?.abort();
+      created?.destroy();
+      player.current = null;
+      element.remove();
     };
-
-    if ((window as any).YT) {
-      initPlayer();
-    } else {
-      (window as any).onYouTubeIframeAPIReady = initPlayer;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const playSong = (index: number, songs = playlist) => {
+    if (!songs[index]) return;
+    setError('');
+    latest.current = { playlist: songs, currentIndex: index };
+    setCurrentIndex(index);
+    if (ready) player.current?.loadVideoById(songs[index].videoId);
+    else queued.current = songs[index].videoId;
+  };
   const searchMusic = async () => {
     if (!searchQuery.trim()) return;
+    search.current?.abort();
+    const controller = new AbortController();
+    search.current = controller;
     setIsLoading(true);
-    
+    setError('');
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
-      const response = await fetch(`${API_BASE_URL}/api/music/search?q=${encodeURIComponent(searchQuery)}`);
+      const response = await fetch(`${API_BASE_URL}/api/music/search?q=${encodeURIComponent(searchQuery.trim())}`, { signal: controller.signal });
       const data = await response.json();
-      
-      if (data.success && data.videos && data.videos.length > 0) {
-        setPlaylist(data.videos);
-        setCurrentIndex(0);
-        playVideo(data.videos[0].videoId);
-      } else {
-        alert(data.message || 'No music found. Please check YouTube API key.');
-      }
+      if (!response.ok || !data.success) throw new Error(data.error || data.message || 'Music search failed.');
+      const songs = (Array.isArray(data.videos) ? data.videos : []).filter((song: Song) => typeof song.videoId === 'string' && typeof song.title === 'string');
+      if (!songs.length) throw new Error(data.message || 'No songs found. Try another search.');
+      setPlaylist(songs);
+      playSong(0, songs);
     } catch (error) {
-      console.error('Music search failed:', error);
-      alert('Music search failed. Please try again.');
+      if (!controller.signal.aborted) setError(error instanceof Error ? error.message : 'Music search failed.');
     } finally {
-      setIsLoading(false);
+      if (!controller.signal.aborted) setIsLoading(false);
     }
   };
-
-  const playVideo = (videoId: string) => {
-    if (playerRef.current?.loadVideoById) {
-      playerRef.current.loadVideoById(videoId);
-      setIsPlaying(true);
-    }
+  const togglePlayback = () => {
+    if (!ready) return;
+    if (isPlaying) player.current?.pauseVideo();
+    else player.current?.playVideo();
   };
+  const song = playlist[currentIndex];
 
-  const handlePlayPause = () => {
-    if (!playerRef.current) return;
-    
-    if (isPlaying) {
-      playerRef.current.pauseVideo();
-    } else {
-      playerRef.current.playVideo();
-    }
-  };
-
-  const handleNext = () => {
-    if (currentIndex < playlist.length - 1) {
-      const nextIndex = currentIndex + 1;
-      setCurrentIndex(nextIndex);
-      playVideo(playlist[nextIndex].videoId);
-    }
-  };
-
-  const handlePrevious = () => {
-    if (currentIndex > 0) {
-      const prevIndex = currentIndex - 1;
-      setCurrentIndex(prevIndex);
-      playVideo(playlist[prevIndex].videoId);
-    }
-  };
-
-  const currentSong = playlist[currentIndex];
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center animate-in fade-in duration-200">
-      <div onClick={onClose} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      
-      <div className="relative bg-slate-900/95 backdrop-blur-xl border border-slate-800/50 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-800/50">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500">
-              <Volume2 className="w-5 h-5 text-white" />
-            </div>
-            <h3 className="font-semibold text-lg text-gray-100">Music Player</h3>
-          </div>
-          <div className="flex items-center gap-2">
-            {onMinimize && (
-              <button onClick={onMinimize} className="p-2 hover:bg-slate-800/50 rounded-lg transition-colors">
-                <Minimize2 className="w-5 h-5 text-gray-400" />
-              </button>
-            )}
-            <button onClick={onClose} className="p-2 hover:bg-slate-800/50 rounded-lg transition-colors">
-              <X className="w-5 h-5 text-gray-400" />
-            </button>
-          </div>
+  return createPortal(<div className={minimized ? 'fixed bottom-4 right-4 z-[70] w-[320px] max-w-[calc(100vw-2rem)]' : 'fixed inset-0 z-[70] flex items-center justify-center p-4'}>
+    {!minimized && <div onClick={onMinimize} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />}
+    <section role={minimized ? 'region' : 'dialog'} aria-modal={!minimized || undefined} aria-label={minimized ? 'Mini music player' : 'Music player'} className="relative w-full max-w-xl max-h-[90dvh] overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 text-gray-100 shadow-2xl">
+      <header className="flex items-center justify-between gap-3 border-b border-slate-700 p-3">
+        <h2 className="min-w-0 truncate text-sm font-semibold">{minimized ? song?.title || 'Aura Music' : 'Aura Music'}</h2>
+        <div className="flex shrink-0 gap-2">
+          <button aria-label={minimized ? 'Restore music player' : 'Minimize music player'} title={minimized ? 'Restore music player' : 'Minimize music player'} onClick={minimized ? onRestore : onMinimize} className="rounded-lg p-2 hover:bg-slate-800">{minimized ? <Maximize2 size={17} /> : <Minimize2 size={17} />}</button>
+          <button aria-label="Close music player and stop playback" title="Close and stop playback" onClick={onClose} className="rounded-lg p-2 hover:bg-slate-800"><X size={17} /></button>
         </div>
-
-        {/* Search */}
-        <div className="p-6 border-b border-slate-800/50">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && searchMusic()}
-              placeholder="Search for songs..."
-              className="flex-1 px-4 py-3 rounded-xl bg-slate-800/50 border border-slate-700/50 text-gray-100 outline-none focus:border-green-500 transition-colors"
-            />
-            <button
-              onClick={searchMusic}
-              disabled={isLoading}
-              className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all disabled:opacity-50"
-            >
-              <Search className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Now Playing */}
-        {currentSong && (
-          <div className="p-6 border-b border-slate-800/50">
-            <div className="flex items-center gap-4">
-              <img
-                src={currentSong.thumbnail}
-                alt={currentSong.title}
-                className="w-20 h-20 rounded-xl object-cover"
-              />
-              <div className="flex-1 min-w-0">
-                <h4 className="font-semibold text-gray-100 truncate">{currentSong.title}</h4>
-                <p className="text-sm text-gray-400 truncate">{currentSong.channel}</p>
-              </div>
-            </div>
-
-            {/* Controls */}
-            <div className="flex items-center justify-center gap-4 mt-6">
-              <button
-                onClick={handlePrevious}
-                disabled={currentIndex === 0}
-                className="p-3 rounded-full hover:bg-slate-800/50 transition-colors disabled:opacity-30"
-              >
-                <SkipBack className="w-6 h-6 text-gray-300" />
-              </button>
-              
-              <button
-                onClick={handlePlayPause}
-                className="p-4 rounded-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 transition-all"
-              >
-                {isPlaying ? (
-                  <Pause className="w-6 h-6 text-white" />
-                ) : (
-                  <Play className="w-6 h-6 text-white" />
-                )}
-              </button>
-              
-              <button
-                onClick={handleNext}
-                disabled={currentIndex === playlist.length - 1}
-                className="p-3 rounded-full hover:bg-slate-800/50 transition-colors disabled:opacity-30"
-              >
-                <SkipForward className="w-6 h-6 text-gray-300" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Playlist */}
-        <div className="p-6 max-h-96 overflow-y-auto">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"></div>
-            </div>
-          ) : playlist.length > 0 ? (
-            <div className="space-y-2">
-              {playlist.map((song, index) => (
-                <div
-                  key={song.videoId}
-                  onClick={() => {
-                    setCurrentIndex(index);
-                    playVideo(song.videoId);
-                  }}
-                  className={`p-3 rounded-xl cursor-pointer transition-all ${
-                    index === currentIndex
-                      ? 'bg-green-500/20 border border-green-500/50'
-                      : 'hover:bg-slate-800/50 border border-transparent'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={song.thumbnail}
-                      alt={song.title}
-                      className="w-12 h-12 rounded-lg object-cover"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <h5 className="font-medium text-gray-100 truncate text-sm">{song.title}</h5>
-                      <p className="text-xs text-gray-400 truncate">{song.channel}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-12 text-gray-400">
-              Search for music to start playing
-            </div>
-          )}
-        </div>
+      </header>
+      <div className="aspect-video min-h-[180px] w-full bg-black" ref={host} />
+      {!ready && !error && <p role="status" className="p-3 text-sm text-gray-400">Connecting to YouTube…</p>}
+      {error && <p role="alert" className="p-3 text-sm text-amber-300">{error}</p>}
+      <div className="flex items-center justify-center gap-4 p-3">
+        <button aria-label="Previous song" disabled={!ready || currentIndex === 0} onClick={() => playSong(currentIndex - 1)} className="p-2 disabled:opacity-30"><SkipBack size={20} /></button>
+        <button aria-label={isPlaying ? 'Pause song' : 'Play song'} disabled={!ready || !song} onClick={togglePlayback} className="rounded-full bg-emerald-400 p-3 text-slate-950 disabled:opacity-30">{isPlaying ? <Pause size={20} /> : <Play size={20} />}</button>
+        <button aria-label="Next song" disabled={!ready || currentIndex >= playlist.length - 1} onClick={() => playSong(currentIndex + 1)} className="p-2 disabled:opacity-30"><SkipForward size={20} /></button>
       </div>
-    </div>
-  );
+      {!minimized && <>
+        <form className="flex gap-2 border-t border-slate-700 p-4" onSubmit={event => { event.preventDefault(); void searchMusic(); }}>
+          <input aria-label="Search for songs" value={searchQuery} onChange={event => setSearchQuery(event.target.value)} placeholder="Search for songs…" className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm" />
+          <button aria-label="Search music" disabled={isLoading || !searchQuery.trim()} className="rounded-lg bg-emerald-400 p-3 text-slate-950 disabled:opacity-30"><Search size={18} /></button>
+        </form>
+        <div className="max-h-48 overflow-y-auto px-4 pb-4">
+          {isLoading ? <p role="status">Searching…</p> : playlist.length ? playlist.map((item, index) => <button key={`${item.videoId}-${index}`} onClick={() => playSong(index)} className={`mb-1 flex w-full items-center gap-3 rounded-lg p-2 text-left ${index === currentIndex ? 'bg-emerald-400/10' : 'hover:bg-slate-800'}`}>
+            <img src={item.thumbnail} alt="" className="h-10 w-14 rounded object-cover" /><span className="min-w-0"><strong className="block truncate text-sm">{item.title}</strong><span className="text-xs text-gray-400">{item.channel}</span></span>
+          </button>) : <p className="py-3 text-sm text-gray-400">Search for a song to start your playlist.</p>}
+        </div>
+      </>}
+    </section>
+  </div>, document.body);
 }
