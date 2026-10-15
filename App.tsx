@@ -1,3 +1,4 @@
+import { AvatarStream, AvatarStreamHandle } from './src/components/AvatarStream';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GoogleGenAI, Modality, LiveServerMessage, Type, FunctionDeclaration } from '@google/genai';
 import { Mic, MicOff, Settings as SettingsIcon, Sun, Moon, Volume2, VolumeX, Send, Paperclip, Menu, X, Cloud, Newspaper, BookOpen, Clock, Music as MusicIcon, Gamepad2, Image, Palette, Code, FileSearch, PenTool, FileText, ListTodo, StickyNote, Languages, User, Brain, Navigation, Download } from 'lucide-react';
@@ -488,6 +489,18 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDark, setIsDark] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
+  const [avatarMode, setAvatarMode] = useState(false);
+  const [avatarError, setAvatarError] = useState('');
+  const avatarRef = useRef<AvatarStreamHandle>(null);
+  const avatarReady = useRef(false);
+  const mutedRef = useRef(isMuted);
+  mutedRef.current = isMuted;
+  const onAvatarReady = useCallback((ready: boolean) => { avatarReady.current = ready; }, []);
+  const onAvatarError = useCallback((message: string) => {
+    avatarReady.current = false;
+    setAvatarMode(false);
+    setAvatarError(message);
+  }, []);
   const [textInput, setTextInput] = useState('');
   const [toolInput, setToolInput] = useState('');
   const [fromLang, setFromLang] = useState('auto');
@@ -768,6 +781,8 @@ const App: React.FC = () => {
         model: 'gemini-2.0-flash-live-001',
         config: {
           responseModalities: [Modality.AUDIO],
+          outputAudioTranscription: {},
+          inputAudioTranscription: {},
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
           },
@@ -801,7 +816,7 @@ const App: React.FC = () => {
             }
 
             const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
-            if (base64Audio && !isMuted) {
+            if (base64Audio && !mutedRef.current && !avatarReady.current) {
               setStatus(AssistantStatus.SPEAKING);
               nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outCtx.currentTime);
               const audioBuffer = await decodeAudioData(decode(base64Audio), outCtx, 24000, 1);
@@ -820,6 +835,7 @@ const App: React.FC = () => {
 
             if (message.serverContent?.turnComplete) {
               const { input, output } = currentTranscriptionRef.current;
+              if (output && !mutedRef.current) avatarRef.current?.speak(output);
               if (input || output) {
                 setMessages(prev => [
                   ...prev,
@@ -832,6 +848,7 @@ const App: React.FC = () => {
             }
 
             if (message.serverContent?.interrupted) {
+              avatarRef.current?.interrupt();
               sourcesRef.current.forEach(s => { try { s.stop(); } catch(e) {} });
               sourcesRef.current.clear();
               nextStartTimeRef.current = 0;
@@ -1139,6 +1156,7 @@ const App: React.FC = () => {
         contents: userMessage,
       });
       const response = result.text ?? '';
+      if (!mutedRef.current) avatarRef.current?.speak(response);
       
       setMessages(prev => [...prev, { 
         id: (Date.now() + 1).toString(), 
@@ -1284,8 +1302,19 @@ const App: React.FC = () => {
               </div>
             </div>
 
+            <div className="px-6 py-2">
+              <button aria-pressed={avatarMode} className="rounded-xl border px-3 py-2" onClick={() => {
+                avatarReady.current = false;
+                sourcesRef.current.forEach(source => { try { source.stop(); } catch {} });
+                sourcesRef.current.clear();
+                setAvatarError('');
+                setAvatarMode(mode => !mode);
+              }}>{avatarMode ? 'Standard chat mode' : 'Avatar video mode'}</button>
+              {avatarError && <p role="alert" className="mt-2 text-sm">{avatarError}</p>}
+              {avatarMode && <AvatarStream ref={avatarRef} muted={isMuted} onReady={onAvatarReady} onError={onAvatarError} />}
+            </div>
             {/* Hero Area - Transitions between full and compact */}
-            <div className={`shrink-0 transition-all duration-500 ${messages.length === 0 ? 'h-64' : 'h-20'} flex items-center justify-center mt-64`}>
+            <div hidden={avatarMode} className={`shrink-0 transition-all duration-500 ${messages.length === 0 ? 'h-64' : 'h-20'} flex items-center justify-center mt-64`}>
               <div className="flex flex-col items-center justify-center gap-6">
                 <motion.div 
                   animate={{ 
