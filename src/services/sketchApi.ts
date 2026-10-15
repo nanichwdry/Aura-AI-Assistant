@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 export interface GenerateSketchRequest {
   prompt: string;
   style?: 'line_art' | 'clean_ink' | 'wireframe';
@@ -11,7 +12,7 @@ export interface GenerateSketchResponse {
 }
 
 export async function generateSketch(prompt: string): Promise<string> {
-  const response = await fetch('/api/sketch/generate', {
+  const response = await fetch(`${API_BASE_URL}/api/sketch/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt, style: 'line_art', size: '1024x1024' })

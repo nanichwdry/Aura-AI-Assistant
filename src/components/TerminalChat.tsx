@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Image as ImageIcon, X } from 'lucide-react';
 
@@ -50,7 +51,7 @@ export default function TerminalChat({ onClose }: TerminalChatProps) {
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:3001/api/chat', {
+      const response = await fetch(`${API_BASE_URL}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

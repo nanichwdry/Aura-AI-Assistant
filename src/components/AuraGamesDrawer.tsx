@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { X, Star, Search, Gamepad2, ExternalLink } from 'lucide-react';
 
@@ -43,7 +44,7 @@ export function AuraGamesDrawer({ onClose }: Props) {
     try {
       console.log('Fetching games with:', { searchQuery, selectedGenre });
       
-      const response = await fetch('/api/tools/run', {
+      const response = await fetch(`${API_BASE_URL}/api/tools/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 

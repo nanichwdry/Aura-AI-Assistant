@@ -137,10 +137,10 @@ const App: React.FC = () => {
     else if (fc.name === 'os_command') {
       if (fc.args.tool_name && fc.args.args) {
         const result = await pcControlExecute(fc.args.tool_name, fc.args.args);
-        response.result = result.ok ? result.result : result.error;
+        response.result = result.ok === true ? result.result : result.error;
       } else {
         const result = await pcControlNL(fc.args.task);
-        response.result = result.ok ? result.result : result.error;
+        response.result = result.ok === true ? result.result : result.error;
       }
     }
 
