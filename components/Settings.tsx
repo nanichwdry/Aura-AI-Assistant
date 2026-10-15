@@ -1,3 +1,4 @@
+import { getDeviceToken, setDeviceToken } from '../src/lib/deviceSession';
 import { API_BASE_URL } from '../src/config/api';
 import React, { useState, useEffect } from 'react';
 import { Settings as SettingsIcon, Wifi, WifiOff, Check } from 'lucide-react';
@@ -14,7 +15,7 @@ const Settings: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [pairCode, setPairCode] = useState('');
   const [pairId, setPairId] = useState('');
   const [pairing, setPairing] = useState(false);
-  const [token, setToken] = useState('');
+  const [token, setToken] = useState(getDeviceToken);
 
   useEffect(() => {
     if (window.__TAURI__) {
@@ -59,6 +60,7 @@ const Settings: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       const data = await res.json();
       if (!res.ok || !data.device_token) throw new Error(data.error || "Pairing failed");
       setToken(data.device_token);
+      setDeviceToken(data.device_token);
       
       if (window.__TAURI__) {
         await window.__TAURI__.invoke('save_config', { 

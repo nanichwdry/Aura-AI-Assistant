@@ -12,6 +12,10 @@ export function createAvatarTokenHandler({ env = process.env, fetchImpl = fetch,
     if (!env.AVATAR_API_KEY || !env.AVATAR_ID || !env.AVATAR_VOICE_ID) {
       return res.status(503).json({ error: 'Avatar streaming is not configured on the server.' });
     }
+    const conversation = req.body?.conversation === true;
+    if (conversation && !env.AVATAR_CONTEXT_ID) {
+      return res.status(503).json({ error: 'Live discussion needs AVATAR_CONTEXT_ID on the server. Configure Aura’s conversational context first.' });
+    }
     const time = now();
     for (const [id, entry] of attempts) if (time - entry.start >= 60000) attempts.delete(id);
     const entry = attempts.get(device.id) || { start: time, count: 0 };
@@ -27,7 +31,10 @@ export function createAvatarTokenHandler({ env = process.env, fetchImpl = fetch,
           mode: 'FULL', avatar_id: env.AVATAR_ID,
           is_sandbox: env.AVATAR_SANDBOX !== 'false',
           max_session_duration: 300,
-          avatar_persona: { voice_id: env.AVATAR_VOICE_ID, language: 'en' },
+          interactivity_type: 'CONVERSATIONAL',
+          avatar_persona: { voice_id: env.AVATAR_VOICE_ID, language: 'en',
+            ...(conversation ? { context_id: env.AVATAR_CONTEXT_ID } : {}),
+          },
         }),
       });
       if (!upstream.ok) return res.status(502).json({ error: 'Avatar provider could not create a session.' });

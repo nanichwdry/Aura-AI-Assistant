@@ -1,3 +1,4 @@
+import { LiveDiscussion, LiveDiscussionHandle } from './src/components/LiveDiscussion';
 import { escapeHtml } from './src/lib/html';
 import './src/styles/aura-workspace.css';
 import { AvatarStream, AvatarStreamHandle } from './src/components/AvatarStream';
@@ -492,6 +493,12 @@ const App: React.FC = () => {
   const [isDark, setIsDark] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
   const [avatarMode, setAvatarMode] = useState(false);
+  const [liveDiscussion, setLiveDiscussion] = useState(false);
+  const [liveReady, setLiveReady] = useState(false);
+  const discussionRef = useRef<LiveDiscussionHandle>(null);
+  const addLiveTranscript = useCallback((role: 'user' | 'assistant', text: string) => {
+    setMessages(previous => [...previous, { id: crypto.randomUUID(), role, content: text, timestamp: new Date() }]);
+  }, []);
   const [avatarError, setAvatarError] = useState('');
   const avatarRef = useRef<AvatarStreamHandle>(null);
   const avatarReady = useRef(false);
@@ -1172,6 +1179,10 @@ const App: React.FC = () => {
 
   const handleSendText = async () => {
     if (!textInput.trim() || chatPendingRef.current) return;
+    if (liveDiscussion) {
+      if (discussionRef.current?.send(textInput.trim())) setTextInput('');
+      return;
+    }
     chatPendingRef.current = true;
     setChatPending(true);
     const userMessage = textInput;
@@ -1304,17 +1315,26 @@ const App: React.FC = () => {
             </header>
 
             <div className="workspace-modebar">
-              <button aria-pressed={avatarMode} className="workspace-mode-toggle" onClick={() => {
-                avatarReady.current = false;
-                sourcesRef.current.forEach(source => { try { source.stop(); } catch {} });
-                sourcesRef.current.clear();
-                setAvatarError('');
-                setAvatarMode(mode => !mode);
-              }}><span className={!avatarMode ? 'active' : ''}>Chat</span><span className={avatarMode ? 'active' : ''}>Avatar video</span></button>
+              <div className="workspace-mode-toggle" role="group" aria-label="Conversation mode">
+                <button aria-pressed={!avatarMode && !liveDiscussion} className={!avatarMode && !liveDiscussion ? 'active' : ''} onClick={() => {
+                  discussionRef.current?.end(); setLiveDiscussion(false); setLiveReady(false);
+                  avatarReady.current = false; setAvatarMode(false); stopSession();
+                }}>Chat</button>
+                <button aria-pressed={avatarMode} className={avatarMode ? 'active' : ''} onClick={() => {
+                  discussionRef.current?.end(); setLiveDiscussion(false); setLiveReady(false);
+                  setAvatarError(''); setAvatarMode(true);
+                }}>Avatar replies</button>
+                <button aria-pressed={liveDiscussion} className={liveDiscussion ? 'active' : ''} onClick={() => {
+                  if (liveDiscussion) return;
+                  stopSession(); setAvatarMode(false); avatarReady.current = false;
+                  setLiveReady(false); setLiveDiscussion(true);
+                }}>Live discussion</button>
+              </div>
+              {liveDiscussion && <LiveDiscussion ref={discussionRef} muted={isMuted} onTranscript={addLiveTranscript} onReady={setLiveReady} />}
               {avatarError && <p role="alert" className="mt-2 text-sm">{avatarError}</p>}
               {avatarMode && <AvatarStream ref={avatarRef} muted={isMuted} onReady={onAvatarReady} onError={onAvatarError} />}
             </div>
-            {!avatarMode && messages.length === 0 && <section className="workspace-welcome">
+            {!avatarMode && !liveDiscussion && messages.length === 0 && <section className="workspace-welcome">
               <div className={`workspace-orb ${status === AssistantStatus.SPEAKING ? 'is-speaking' : ''}`} aria-hidden="true"><div /><span /><i /></div>
               <span className="workspace-eyebrow">A LITTLE INTELLIGENCE. ENDLESS POSSIBILITY.</span>
               <h2>What’s on your mind?</h2>
@@ -1329,7 +1349,7 @@ const App: React.FC = () => {
             </section>}
 
             {/* Chat Area - Fixed height with internal scroll */}
-            <div className={`workspace-conversation ${messages.length === 0 && !avatarMode ? "is-empty" : ""} flex-1 overflow-hidden flex flex-col`}>
+            <div className={`workspace-conversation ${messages.length === 0 && !avatarMode && !liveDiscussion ? "is-empty" : ""} flex-1 overflow-hidden flex flex-col`}>
               <div className="workspace-messages flex-1 overflow-y-auto p-6 space-y-4 aura-scrollbar">
                 <AnimatePresence>
                   {messages.map((msg) => (
@@ -1375,7 +1395,7 @@ const App: React.FC = () => {
               {/* Input Bar - Sticky at bottom */}
               <div className="workspace-composer-wrap shrink-0">
                 <div className="workspace-composer flex items-center gap-2">
-                  <button aria-label={(status === AssistantStatus.IDLE || status === AssistantStatus.ERROR) ? 'Start voice conversation' : 'Stop voice conversation'} title={(status === AssistantStatus.IDLE || status === AssistantStatus.ERROR) ? 'Start voice conversation' : 'Stop voice conversation'} onClick={handleToggleSession} className={`workspace-mic ${status !== AssistantStatus.IDLE ? 'is-active' : ''}`}>
+                  <button disabled={liveDiscussion} aria-label={(status === AssistantStatus.IDLE || status === AssistantStatus.ERROR) ? 'Start voice conversation' : 'Stop voice conversation'} title={(status === AssistantStatus.IDLE || status === AssistantStatus.ERROR) ? 'Start voice conversation' : 'Stop voice conversation'} onClick={handleToggleSession} className={`workspace-mic ${status !== AssistantStatus.IDLE ? 'is-active' : ''}`}>
                     {(status === AssistantStatus.IDLE || status === AssistantStatus.ERROR) ? <Mic size={20} /> : <MicOff size={20} />}
                   </button>
                   <input
@@ -1388,7 +1408,7 @@ const App: React.FC = () => {
                     placeholder="Ask Aura anything, or start with a thought…"
                     className={`flex-1 bg-transparent outline-none ${textColor} aura-input`}
                   />
-                  <button aria-label="Send message" title="Send message" disabled={!textInput.trim() || chatPending} onClick={handleSendText} className="workspace-send">
+                  <button aria-label="Send message" title="Send message" disabled={!textInput.trim() || chatPending || (liveDiscussion && !liveReady)} onClick={handleSendText} className="workspace-send">
                     <Send className="w-5 h-5" />
                   </button>
                 </div>
@@ -1401,7 +1421,7 @@ const App: React.FC = () => {
           <aside className="workspace-sidebar hidden lg:flex h-full overflow-y-auto">
             <div className="workspace-sidebar-inner">
               <div className="workspace-wordmark"><div className="workspace-brand-mark"><Brain size={22} /></div><span>aura<span className="workspace-wordmark-dot">.</span></span></div>
-              <button className="workspace-new-chat" onClick={() => { avatarRef.current?.interrupt(); setMessages([]); setTextInput(''); composerRef.current?.focus(); }}><PenTool size={17} /> New conversation <span>＋</span></button>
+              <button className="workspace-new-chat" onClick={() => { discussionRef.current?.end(); setLiveReady(false); avatarRef.current?.interrupt(); setMessages([]); setTextInput(''); composerRef.current?.focus(); }}><PenTool size={17} /> New conversation <span>＋</span></button>
               <div className="workspace-nav-heading">YOUR TOOLKIT <span>✧</span></div>
               <div className="workspace-tool-grid">
                 {QUICK_ACTIONS.map((action) => {
@@ -1449,7 +1469,7 @@ const App: React.FC = () => {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <button className="workspace-new-chat mb-4 w-full" onClick={() => { avatarRef.current?.interrupt(); setMessages([]); setTextInput(''); setIsSidebarOpen(false); composerRef.current?.focus(); }}><PenTool size={17} /> New conversation</button>
+              <button className="workspace-new-chat mb-4 w-full" onClick={() => { discussionRef.current?.end(); setLiveReady(false); avatarRef.current?.interrupt(); setMessages([]); setTextInput(''); setIsSidebarOpen(false); composerRef.current?.focus(); }}><PenTool size={17} /> New conversation</button>
               <div className="grid grid-cols-2 gap-3">
                 {QUICK_ACTIONS.map((action) => {
                   const Icon = action.icon;
